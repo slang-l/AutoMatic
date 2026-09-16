@@ -270,6 +270,38 @@ Authorization: Bearer <access-token>
 pnpm check
 ```
 
+## 贡献说明
+
+欢迎通过 Issue 和 Pull Request 参与 AutoMatic 的改进，包括功能建议、问题修复、文档完善和用户体验优化。
+
+### 开始贡献
+
+1. Fork 本仓库并克隆到本地。
+2. 从最新的主分支创建独立分支，例如 `feat/theme-editor`、`fix/login-session` 或 `docs/contributing`。
+3. 执行 `pnpm install` 安装依赖，并参考“首次启动”章节配置本地开发环境。
+4. 完成修改后运行 `pnpm check`，确保类型检查、测试和构建均通过。
+5. 提交修改并发起 Pull Request。
+
+### 开发约定
+
+- 保持每次提交目标单一，避免在同一个 Pull Request 中混入无关修改。
+- 遵循项目现有的 TypeScript、React 和 Prettier 代码风格；可运行 `pnpm format` 统一格式。
+- 新增或修改功能时，请同步补充相关测试和文档。
+- 不要提交 `.env`、密钥、访问令牌、数据库文件或其他敏感信息。
+- 修改数据库结构时，请在 `apps/api/migrations/` 中新增迁移文件，不要直接改写已经发布的迁移。
+
+### 提交与 Pull Request
+
+建议使用清晰的提交信息，例如：
+
+```text
+feat: 新增公众号主题导入功能
+fix: 修复刷新会话重复使用问题
+docs: 完善本地开发说明
+```
+
+Pull Request 应说明修改目的、主要变化和验证方式；涉及界面调整时，建议附上截图或录屏。提交前请确认不存在无关文件、调试日志或敏感数据。
+
 ## 常见问题
 
 ### API 报数据库连接失败
