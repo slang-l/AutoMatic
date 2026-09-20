@@ -499,6 +499,8 @@ function getAuthErrorMessage(error: unknown, isLogin: boolean): string {
         return '邮箱验证码已过期，请重新获取';
       case 'VERIFICATION_CODE_ATTEMPTS_EXCEEDED':
         return '验证码错误次数过多，请重新获取';
+      case 'VERIFICATION_CODE_DELIVERY_FAILED':
+        return '验证码发送失败，请稍后重试';
       case 'ACCOUNT_DISABLED':
         return '该账号已被停用，请联系管理员';
       case 'RATE_LIMITED':
@@ -525,6 +527,8 @@ function getVerificationRequestErrorMessage(error: unknown): string {
         return '该邮箱已注册，请直接登录';
       case 'VERIFICATION_CODE_RATE_LIMITED':
         return '验证码发送过于频繁，请稍后再试';
+      case 'VERIFICATION_CODE_DELIVERY_FAILED':
+        return '验证码发送失败，请稍后重试';
       case 'INVALID_REQUEST':
         return '请输入有效的邮箱地址';
       default:

@@ -10,7 +10,7 @@ export interface WechatConfig {
 
 export interface SaveWechatConfigInput {
   appId: string;
-  appSecret: string;
+  appSecret?: string;
   defaultAuthor: string;
   defaultDigest: string;
 }

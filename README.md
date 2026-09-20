@@ -1,6 +1,8 @@
 # AutoMatic
 
-AutoMatic 是一个面向微信公众号内容创作的前后端 monorepo，提供 BlockSuite 编辑、公众号样式预览，以及基于 JWT 的账号注册、登录和会话续期。
+协同底层接口与同步协议见 [docs/collaboration.md](docs/collaboration.md)。
+
+AutoMatic 是一个面向微信公众号内容创作的前后端 monorepo，提供 BlockSuite 编辑、公众号样式预览，以及带邮箱验证码的账号注册、登录和会话续期。
 
 ## 技术架构
 
@@ -102,14 +104,14 @@ pnpm db:up
 
 该命令会启动 `postgres:17-alpine`，等待健康检查通过，并在本机开放 `5432` 端口。开发环境默认连接信息为：
 
-| 项目     | 值                                           |
-| -------- | -------------------------------------------- |
-| Host     | `localhost`                                  |
-| Port     | `5432`                                       |
-| Database | `automatic`                                                    |
-| User     | `automatic`                                                    |
-| Password | `automatic`                                                    |
-| URL      | `postgresql://automatic:automatic@localhost:5432/automatic`     |
+| 项目     | 值                                                          |
+| -------- | ----------------------------------------------------------- |
+| Host     | `localhost`                                                 |
+| Port     | `5432`                                                      |
+| Database | `automatic`                                                 |
+| User     | `automatic`                                                 |
+| Password | `automatic`                                                 |
+| URL      | `postgresql://automatic:automatic@localhost:5432/automatic` |
 
 数据库文件保存在 Docker 命名卷中，执行 `pnpm db:down` 后仍会保留。
 
@@ -133,7 +135,19 @@ pnpm dev
 - API：<http://localhost:3000>
 - 健康检查：<http://localhost:3000/api/health>
 
-开发环境中，Vite 会把浏览器发往 `/api` 的请求代理到 `http://127.0.0.1:3000`。首次使用可直接在登录页注册账号。
+开发环境中，Vite 会把浏览器发往 `/api` 的请求代理到 `http://127.0.0.1:3000`。
+
+### 6. 在网页测试验证码注册
+
+1. 打开 <http://localhost:5173>，切换到“注册”；
+2. 输入一个尚未注册的邮箱，点击“获取验证码”；
+3. 本地开发模式会在验证码输入框下方显示“开发测试验证码”，无需真实邮箱；
+4. 填入该 6 位验证码、至少 8 位的密码和确认密码，点击“创建账号”；
+5. 注册成功后会自动登录并进入工作台，账号会保存到本地 PostgreSQL。
+
+验证码默认 10 分钟有效，同一邮箱 60 秒后才能重新获取。若需要测试真实邮件，把
+`RESEND_API_KEY` 和 `RESEND_FROM` 同时写入 `apps/api/.env`；发件域名需要先在 Resend
+中完成验证。未配置这两个变量时，本地开发测试不受影响。
 
 开发环境启动 API 时还会幂等初始化一个最高权限账号：
 
@@ -150,35 +164,38 @@ pnpm dev
 
 服务端读取 `apps/api/.env`。完整模板见 [`apps/api/.env.example`](apps/api/.env.example)。
 
-| 变量                     | 示例或默认值                                 | 说明                                          |
-| ------------------------ | -------------------------------------------- | --------------------------------------------- |
-| `NODE_ENV`               | `development`                                | `development`、`test` 或 `production`         |
-| `HOST`                   | `0.0.0.0`                                    | API 监听地址                                  |
-| `PORT`                   | `3000`                                       | API 监听端口                                  |
-| `CORS_ORIGINS`           | `http://localhost:5173`                      | 允许携带凭据的前端来源，多个来源用逗号分隔    |
+| 变量                     | 示例或默认值                                                | 说明                                          |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------- |
+| `NODE_ENV`               | `development`                                               | `development`、`test` 或 `production`         |
+| `HOST`                   | `0.0.0.0`                                                   | API 监听地址                                  |
+| `PORT`                   | `3000`                                                      | API 监听端口                                  |
+| `CORS_ORIGINS`           | `http://localhost:5173`                                     | 允许携带凭据的前端来源，多个来源用逗号分隔    |
 | `DATABASE_URL`           | `postgresql://automatic:automatic@localhost:5432/automatic` | PostgreSQL 连接字符串                         |
-| `JWT_ACCESS_SECRET`      | 无                                           | JWT HMAC 签名密钥，必填且至少 32 个字符       |
-| `JWT_ISSUER`             | `automatic-api`                              | Access Token 的签发者                         |
-| `JWT_AUDIENCE`           | `automatic-web`                              | Access Token 的接收方                         |
-| `ACCESS_TOKEN_TTL`       | `15m`                                        | Access Token 有效期，范围为 60 秒至 1 天      |
-| `REFRESH_TOKEN_TTL_DAYS` | `7`                                          | Refresh Token 有效天数，范围为 1 至 90 天     |
-| `DEV_ADMIN_ENABLED`      | `true`（仅开发）                             | 是否初始化本地管理员；非开发环境禁止为 `true` |
-| `DEV_ADMIN_EMAIL`        | `admin@qq.com`                               | 本地管理员邮箱                                |
-| `DEV_ADMIN_PASSWORD`     | `123456`                                     | 本地管理员密码，不得用于生产                  |
-| `DEV_ADMIN_NAME`         | `系统管理员`                                 | 本地管理员显示名称                            |
+| `JWT_ACCESS_SECRET`      | 无                                                          | JWT HMAC 签名密钥，必填且至少 32 个字符       |
+| `JWT_ISSUER`             | `automatic-api`                                             | Access Token 的签发者                         |
+| `JWT_AUDIENCE`           | `automatic-web`                                             | Access Token 的接收方                         |
+| `ACCESS_TOKEN_TTL`       | `15m`                                                       | Access Token 有效期，范围为 60 秒至 1 天      |
+| `REFRESH_TOKEN_TTL_DAYS` | `7`                                                         | Refresh Token 有效天数，范围为 1 至 90 天     |
+| `RESEND_API_KEY`         | 空                                                          | 可选；Resend API Key                          |
+| `RESEND_FROM`            | 空                                                          | 可选；如 `AutoMatic <verify@example.com>`     |
+| `DEV_ADMIN_ENABLED`      | `true`（仅开发）                                            | 是否初始化本地管理员；非开发环境禁止为 `true` |
+| `DEV_ADMIN_EMAIL`        | `admin@qq.com`                                              | 本地管理员邮箱                                |
+| `DEV_ADMIN_PASSWORD`     | `123456`                                                    | 本地管理员密码，不得用于生产                  |
+| `DEV_ADMIN_NAME`         | `系统管理员`                                                | 本地管理员显示名称                            |
 
 生产环境不要使用 `compose.yaml` 中的开发密码，也不要提交 `.env`。生产前端地址还需要加入 `CORS_ORIGINS`，并使用 HTTPS。
 
 ## 鉴权 API
 
-| 方法   | 路径                 | 凭据                   | 成功状态 | 用途                                                               |
-| ------ | -------------------- | ---------------------- | -------- | ------------------------------------------------------------------ |
-| `POST` | `/api/auth/register` | 无                     | `201`    | 注册账号并创建会话                                                 |
-| `POST` | `/api/auth/login`    | 无                     | `200`    | 使用邮箱和密码登录                                                 |
-| `POST` | `/api/auth/refresh`  | Refresh Cookie         | `200`    | 轮换 Refresh Token 并签发新的 Access Token；不延长会话绝对过期时间 |
-| `POST` | `/api/auth/logout`   | Refresh Cookie（可选） | `204`    | 撤销当前会话并清除 Cookie，可重复调用                              |
-| `GET`  | `/api/auth/me`       | Bearer Token           | `200`    | 获取当前用户                                                       |
-| `GET`  | `/api/health`        | 无                     | `200`    | 服务健康检查                                                       |
+| 方法   | 路径                                   | 凭据                   | 成功状态 | 用途                                                               |
+| ------ | -------------------------------------- | ---------------------- | -------- | ------------------------------------------------------------------ |
+| `POST` | `/api/auth/register/verification-code` | 无                     | `201`    | 获取注册验证码；开发环境响应中包含测试码                           |
+| `POST` | `/api/auth/register`                   | 无                     | `201`    | 使用验证码注册账号并创建会话                                       |
+| `POST` | `/api/auth/login`                      | 无                     | `200`    | 使用邮箱和密码登录                                                 |
+| `POST` | `/api/auth/refresh`                    | Refresh Cookie         | `200`    | 轮换 Refresh Token 并签发新的 Access Token；不延长会话绝对过期时间 |
+| `POST` | `/api/auth/logout`                     | Refresh Cookie（可选） | `204`    | 撤销当前会话并清除 Cookie，可重复调用                              |
+| `GET`  | `/api/auth/me`                         | Bearer Token           | `200`    | 获取当前用户                                                       |
+| `GET`  | `/api/health`                          | 无                     | `200`    | 服务健康检查                                                       |
 
 注册请求：
 
@@ -186,6 +203,7 @@ pnpm dev
 {
   "email": "name@example.com",
   "password": "a-strong-password",
+  "verificationCode": "123456",
   "name": "Name"
 }
 ```
@@ -250,18 +268,18 @@ Authorization: Bearer <access-token>
 
 ## 常用命令
 
-| 命令                             | 作用                           |
-| -------------------------------- | ------------------------------ |
-| `pnpm dev`                       | 并行启动 Web 和 API            |
-| `pnpm dev:web`                   | 只启动 Web                     |
-| `pnpm dev:api`                   | 只启动 API                     |
-| `pnpm db:up`                     | 启动并等待 PostgreSQL 健康     |
-| `pnpm db:down`                   | 停止 PostgreSQL，保留数据卷    |
-| `pnpm db:migrate`                | 执行 API 数据库迁移            |
-| `pnpm typecheck`                 | 检查所有应用的 TypeScript 类型 |
-| `pnpm test`                      | 运行所有应用测试               |
-| `pnpm build`                     | 构建所有应用                   |
-| `pnpm check`                     | 依次执行类型检查、测试和构建   |
+| 命令                                 | 作用                           |
+| ------------------------------------ | ------------------------------ |
+| `pnpm dev`                           | 并行启动 Web 和 API            |
+| `pnpm dev:web`                       | 只启动 Web                     |
+| `pnpm dev:api`                       | 只启动 API                     |
+| `pnpm db:up`                         | 启动并等待 PostgreSQL 健康     |
+| `pnpm db:down`                       | 停止 PostgreSQL，保留数据卷    |
+| `pnpm db:migrate`                    | 执行 API 数据库迁移            |
+| `pnpm typecheck`                     | 检查所有应用的 TypeScript 类型 |
+| `pnpm test`                          | 运行所有应用测试               |
+| `pnpm build`                         | 构建所有应用                   |
+| `pnpm check`                         | 依次执行类型检查、测试和构建   |
 | `pnpm --filter @automatic/api start` | 启动已构建的 API               |
 
 提交前建议运行：

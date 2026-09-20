@@ -8,7 +8,9 @@ import { createPostgresPool } from './database/postgres.js';
 import { createPostgresAuthRepository } from './repositories/postgres.repository.js';
 import { createPostgresBrandAssetRepository } from './repositories/postgres-brand-asset.repository.js';
 import { createPostgresWechatRepository } from './repositories/postgres-wechat.repository.js';
+import { createPostgresCollaborationRepository } from './repositories/postgres-collaboration.repository.js';
 import { provisionDevelopmentAdmin } from './services/development-admin.service.js';
+import { createResendRegistrationVerificationCodeSender } from './services/registration-verification-sender.service.js';
 
 if (existsSync('.env')) {
   loadEnvFile('.env');
@@ -41,7 +43,21 @@ try {
   throw error;
 }
 
-const app = buildApp({ config, authRepository, brandAssetRepository, wechatRepository });
+const registrationVerificationCodeSender = config.resendEmail
+  ? createResendRegistrationVerificationCodeSender({
+      apiKey: config.resendEmail.apiKey,
+      from: config.resendEmail.from,
+    })
+  : undefined;
+
+const app = buildApp({
+  config,
+  authRepository,
+  brandAssetRepository,
+  wechatRepository,
+  collaborationRepository: createPostgresCollaborationRepository(pool),
+  registrationVerificationCodeSender,
+});
 const server = app.listen(config.port, config.host, () => {
   console.info(`API server listening on http://${config.host}:${config.port}`);
 });

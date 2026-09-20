@@ -19,6 +19,11 @@ export interface DevelopmentAdminConfig {
   readonly name: string;
 }
 
+export interface ResendEmailConfig {
+  readonly apiKey: string;
+  readonly from: string;
+}
+
 export interface AppConfig {
   readonly nodeEnv: NodeEnvironment;
   readonly host: string;
@@ -30,6 +35,7 @@ export interface AppConfig {
   readonly jwtAudience: string;
   readonly accessTokenTtl: SignOptions['expiresIn'];
   readonly refreshTokenTtlDays: number;
+  readonly resendEmail?: ResendEmailConfig | null;
   /** 仅 development 环境可用；test/production 中始终为 null。 */
   readonly developmentAdmin: DevelopmentAdminConfig | null;
 }
@@ -195,6 +201,29 @@ function readDevelopmentAdmin(
   return { email, password, name };
 }
 
+function readResendEmailConfig(env: NodeJS.ProcessEnv): ResendEmailConfig | null {
+  const apiKey = env.RESEND_API_KEY?.trim();
+  const from = env.RESEND_FROM?.trim();
+
+  if (!apiKey && !from) return null;
+  if (!apiKey || !from) {
+    throw new Error('RESEND_API_KEY and RESEND_FROM must be configured together');
+  }
+
+  const namedAddressMatch = /^([^<>\r\n]+)\s+<([^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)>$/.exec(from);
+  const isPlainAddress = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(from);
+  if ((!namedAddressMatch && !isPlainAddress) || from.length > 320) {
+    throw new Error('RESEND_FROM must be an email or Name <email>');
+  }
+
+  const senderName = namedAddressMatch?.[1].trim();
+  if (senderName && senderName.length > 80) {
+    throw new Error('RESEND_FROM sender name must not exceed 80 characters');
+  }
+
+  return { apiKey, from };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const nodeEnv = readEnum('NODE_ENV', env.NODE_ENV, nodeEnvironments, 'development');
   const jwtAccessSecret = readRequired(
@@ -222,6 +251,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       7,
       90,
     ),
+    resendEmail: readResendEmailConfig(env),
     developmentAdmin: readDevelopmentAdmin(nodeEnv, env),
   };
 }

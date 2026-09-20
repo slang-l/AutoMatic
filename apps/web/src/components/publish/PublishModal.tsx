@@ -32,9 +32,11 @@ import { AuthApiError } from '../../services/auth-api';
 import type { AppDoc } from '../../types/document';
 import { formatDateTime } from '../../utils/date';
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_COVER_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_CONTENT_IMAGE_BYTES = 1024 * 1024;
 const MAX_ENCODED_IMAGES_LENGTH = 14_000_000;
-const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif']);
+const COVER_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif']);
+const CONTENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
 
 interface PublishModalProps {
   content: string;
@@ -191,7 +193,7 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
     try {
       const nextConfig = await saveWechatConfig({
         appId,
-        appSecret,
+        ...(appSecret.trim() ? { appSecret: appSecret.trim() } : {}),
         defaultAuthor,
         defaultDigest,
       });
@@ -242,7 +244,7 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
     try {
       setBusyAction('preparing');
       const [coverImage, preparedContent] = await Promise.all([
-        encodeImage(coverFile, '封面'),
+        encodeImage(coverFile, '封面', 'cover'),
         prepareArticleContent(content),
       ]);
       const encodedLength =
@@ -336,6 +338,21 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
         ) : editingConfig ? (
           <form className="publish-form" onSubmit={handleSaveConfig}>
             <div className="publish-form-body">
+              <div className="publish-config-guide">
+                <strong>发布前请在微信公众平台完成以下配置</strong>
+                <ol>
+                  <li>账号已认证，并具有草稿和发布接口权限</li>
+                  <li>在“设置与开发 → 开发接口管理 → 基本配置”获取 AppID 和 AppSecret</li>
+                  <li>在同一页面把本 API 服务的公网出口 IPv4 加入 IP 白名单</li>
+                </ol>
+                <p>
+                  主动发布无需配置服务器地址、Token 或 EncodingAESKey。
+                  <a href="https://mp.weixin.qq.com/" target="_blank" rel="noreferrer">
+                    打开微信公众平台
+                    <ExternalLink size={13} />
+                  </a>
+                </p>
+              </div>
               <div className="publish-field-grid">
                 <label className="publish-field publish-field-wide">
                   <span>AppID</span>
@@ -355,9 +372,10 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                     <input
                       type={showSecret ? 'text' : 'password'}
                       value={appSecret}
-                      required
+                      required={!config?.configured || appId !== config.appId}
                       minLength={16}
                       maxLength={128}
+                      placeholder={config?.configured ? '留空则继续使用已保存的 AppSecret' : ''}
                       autoComplete="new-password"
                       onChange={(event) => setAppSecret(event.target.value)}
                     />
@@ -685,7 +703,7 @@ async function prepareArticleContent(
 
     const blob = await response.blob();
     const extension = imageExtension(blob.type);
-    const encoded = await encodeImage(blob, `article-image-${index + 1}.${extension}`);
+    const encoded = await encodeImage(blob, `article-image-${index + 1}.${extension}`, 'content');
     const placeholder = `automatic-image://${images.length}`;
     imageElement.setAttribute('src', placeholder);
     images.push({ ...encoded, placeholder });
@@ -706,14 +724,20 @@ function isWechatHostedImage(value: string): boolean {
   }
 }
 
-async function encodeImage(blob: Blob, filename: string): Promise<EncodedWechatImage>;
-async function encodeImage(file: File, label: string): Promise<EncodedWechatImage>;
-async function encodeImage(blob: Blob, filenameOrLabel: string): Promise<EncodedWechatImage> {
-  if (!SUPPORTED_IMAGE_TYPES.has(blob.type)) {
-    throw new Error(`${filenameOrLabel}仅支持 JPEG、PNG 或 GIF`);
+async function encodeImage(
+  blob: Blob,
+  filenameOrLabel: string,
+  kind: 'cover' | 'content',
+): Promise<EncodedWechatImage> {
+  const supportedTypes = kind === 'cover' ? COVER_IMAGE_TYPES : CONTENT_IMAGE_TYPES;
+  if (!supportedTypes.has(blob.type)) {
+    throw new Error(
+      `${filenameOrLabel}仅支持 ${kind === 'cover' ? 'JPEG、PNG 或 GIF' : 'JPEG 或 PNG'}`,
+    );
   }
-  if (blob.size === 0 || blob.size > MAX_IMAGE_BYTES) {
-    throw new Error(`${filenameOrLabel}不能为空且不能超过 5 MB`);
+  const maxBytes = kind === 'cover' ? MAX_COVER_IMAGE_BYTES : MAX_CONTENT_IMAGE_BYTES;
+  if (blob.size === 0 || blob.size > maxBytes) {
+    throw new Error(`${filenameOrLabel}不能为空且不能超过 ${kind === 'cover' ? '10 MB' : '1 MB'}`);
   }
 
   const filename = blob instanceof File ? blob.name : filenameOrLabel;

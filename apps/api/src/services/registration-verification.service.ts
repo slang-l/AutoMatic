@@ -21,7 +21,7 @@ export interface RegistrationVerificationChallenge {
 }
 
 export interface RegistrationVerificationService {
-  issue(email: string): RegistrationVerificationChallenge;
+  issue(email: string, onCodeIssued?: (code: string) => void): RegistrationVerificationChallenge;
   verify(email: string, code: string): void;
   consume(email: string): void;
 }
@@ -49,7 +49,7 @@ export function createRegistrationVerificationService(
   const pendingByEmail = new Map<string, PendingVerification>();
 
   return {
-    issue(email) {
+    issue(email, onCodeIssued) {
       const normalizedEmail = normalizeEmail(email);
       const currentTime = now();
       const pending = pendingByEmail.get(normalizedEmail);
@@ -73,6 +73,10 @@ export function createRegistrationVerificationService(
         resendAt: currentTime + resendCooldownSeconds * 1_000,
         failedAttempts: 0,
       });
+
+      // Keep the code out of the public challenge while allowing the auth
+      // service to hand it to a configured delivery provider.
+      onCodeIssued?.(code);
 
       return {
         expiresInSeconds: codeTtlSeconds,

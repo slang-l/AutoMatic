@@ -13,6 +13,7 @@ import { createMemoryAuthRepository } from '../src/repositories/memory.repositor
 import { createMemoryWechatRepository } from '../src/repositories/memory-wechat.repository.js';
 import { createAuthService } from '../src/services/auth.service.js';
 import { provisionDevelopmentAdmin } from '../src/services/development-admin.service.js';
+import { createResendRegistrationVerificationCodeSender } from '../src/services/registration-verification-sender.service.js';
 import { createRegistrationVerificationService } from '../src/services/registration-verification.service.js';
 import { createTokenService } from '../src/services/token.service.js';
 import type { User } from '../src/type/auth.js';
@@ -159,6 +160,92 @@ test('registration requires the server-issued code and limits resends', async ()
   const verified = await request(app).post('/api/auth/register').send(registration);
   assert.equal(verified.statusCode, 201);
   assert.equal(verified.body.user.email, registration.email);
+});
+
+test('registration verification can be delivered and failed deliveries are retryable', async () => {
+  const delivered: Array<{ email: string; code: string; expiresInSeconds: number }> = [];
+  const app = buildApp({
+    config: testConfig,
+    passwordHashRounds: 4,
+    registrationVerificationService: createTestRegistrationVerificationService(),
+    registrationVerificationCodeSender: {
+      async send(input) {
+        delivered.push(input);
+      },
+    },
+  });
+
+  const sent = await request(app)
+    .post('/api/auth/register/verification-code')
+    .send({ email: 'delivered@example.com' });
+
+  assert.equal(sent.statusCode, 201);
+  assert.deepEqual(delivered, [
+    { email: 'delivered@example.com', code: '123456', expiresInSeconds: 600 },
+  ]);
+
+  let attempts = 0;
+  const failedApp = buildApp({
+    config: testConfig,
+    passwordHashRounds: 4,
+    registrationVerificationService: createTestRegistrationVerificationService(),
+    registrationVerificationCodeSender: {
+      async send() {
+        attempts += 1;
+        throw new Error('provider unavailable');
+      },
+    },
+  });
+
+  const failed = await request(failedApp)
+    .post('/api/auth/register/verification-code')
+    .send({ email: 'retry@example.com' });
+  assert.equal(failed.statusCode, 502);
+  assert.equal(failed.body.error.code, 'VERIFICATION_CODE_DELIVERY_FAILED');
+
+  const retried = await request(failedApp)
+    .post('/api/auth/register/verification-code')
+    .send({ email: 'retry@example.com' });
+  assert.equal(retried.statusCode, 502);
+  assert.equal(attempts, 2);
+});
+
+test('Resend verification sender builds the email request and rejects failures', async () => {
+  let requestedUrl = '';
+  let requestedInit: RequestInit | undefined;
+  const sender = createResendRegistrationVerificationCodeSender({
+    apiKey: 'test-api-key',
+    from: 'AutoMatic Test <sender@example.com>',
+    fetchImpl: async (input, init) => {
+      requestedUrl = String(input);
+      requestedInit = init;
+      return new Response(null, { status: 201 });
+    },
+  });
+
+  await sender.send({ email: 'reader@example.com', code: '123456', expiresInSeconds: 600 });
+
+  assert.equal(requestedUrl, 'https://api.resend.com/emails');
+  assert.equal(requestedInit?.method, 'POST');
+  assert.equal(new Headers(requestedInit?.headers).get('authorization'), 'Bearer test-api-key');
+  const body = JSON.parse(String(requestedInit?.body)) as {
+    from: string;
+    to: string[];
+    text: string;
+  };
+  assert.equal(body.from, 'AutoMatic Test <sender@example.com>');
+  assert.deepEqual(body.to, ['reader@example.com']);
+  assert.match(body.text, /123456/);
+
+  const failingSender = createResendRegistrationVerificationCodeSender({
+    apiKey: 'test-api-key',
+    from: 'AutoMatic Test <sender@example.com>',
+    fetchImpl: async () => new Response(null, { status: 400 }),
+  });
+  await assert.rejects(
+    failingSender.send({ email: 'reader@example.com', code: '123456', expiresInSeconds: 600 }),
+    /HTTP 400/,
+  );
 });
 
 test('expired verification codes are rejected and production challenges hide test codes', () => {
@@ -517,6 +604,19 @@ test('configuration validates ports, CORS, database URLs, secrets, and TTLs', ()
   assert.throws(() => loadConfig({ ...validEnvironment, JWT_ACCESS_SECRET: 'too-short' }), /32/);
   assert.throws(() => loadConfig({ ...validEnvironment, ACCESS_TOKEN_TTL: '1000' }), /duration/);
   assert.throws(() => loadConfig({ ...validEnvironment, ACCESS_TOKEN_TTL: '2d' }), /between/);
+  assert.throws(
+    () => loadConfig({ ...validEnvironment, RESEND_API_KEY: 'test-api-key' }),
+    /configured together/,
+  );
+  assert.throws(
+    () =>
+      loadConfig({
+        ...validEnvironment,
+        RESEND_API_KEY: 'test-api-key',
+        RESEND_FROM: 'not-an-email',
+      }),
+    /RESEND_FROM/,
+  );
 
   const config = loadConfig(validEnvironment);
   assert.equal(config.accessTokenTtl, '15m');
@@ -528,6 +628,16 @@ test('configuration validates ports, CORS, database URLs, secrets, and TTLs', ()
     FRONTEND_ORIGIN: undefined,
   }).corsOrigins;
   assert.deepEqual(defaultOrigins, ['http://localhost:5173', 'http://127.0.0.1:5173']);
+
+  const emailConfig = loadConfig({
+    ...validEnvironment,
+    RESEND_API_KEY: 'test-api-key',
+    RESEND_FROM: 'AutoMatic Test <sender@example.com>',
+  }).resendEmail;
+  assert.deepEqual(emailConfig, {
+    apiKey: 'test-api-key',
+    from: 'AutoMatic Test <sender@example.com>',
+  });
 });
 
 test('AppError only accepts public 4xx status codes', () => {
@@ -653,10 +763,10 @@ test('authenticated users can configure and publish to a WeChat official account
         case '/cgi-bin/draft/add':
           return { media_id: 'draft-media-id' };
         case '/cgi-bin/freepublish/submit':
-          return { publish_id: 'publish-id-1', msg_data_id: 9988 };
+          return { publish_id: 123456, msg_data_id: 9988 };
         case '/cgi-bin/freepublish/get':
           return {
-            publish_id: 'publish-id-1',
+            publish_id: 123456,
             publish_status: 0,
             article_id: 'article-id-1',
             article_detail: {
@@ -713,6 +823,21 @@ test('authenticated users can configure and publish to a WeChat official account
   assert.notEqual(storedAccount.encryptedAppSecret, appSecret);
   assert.doesNotMatch(storedAccount.encryptedAppSecret, new RegExp(appSecret));
 
+  const updatedConfig = await request(app)
+    .put('/api/wechat/config')
+    .set('authorization', authorization)
+    .set('origin', 'http://localhost:5173')
+    .send({
+      appId: 'wx1234567890abcdef',
+      defaultAuthor: 'Updated writer',
+      defaultDigest: 'Updated digest',
+    });
+  assert.equal(updatedConfig.statusCode, 200);
+  assert.equal(updatedConfig.body.defaultAuthor, 'Updated writer');
+  const tokenRequests = calls.filter((call) => call.pathname === '/cgi-bin/stable_token');
+  assert.equal(tokenRequests.length, 2);
+  assert.equal(JSON.parse(String(tokenRequests[1]?.body)).secret, appSecret);
+
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]).toString(
     'base64',
   );
@@ -739,20 +864,20 @@ test('authenticated users can configure and publish to a WeChat official account
       onlyFansCanComment: false,
     });
   assert.equal(publish.statusCode, 202);
-  assert.equal(publish.body.publishId, 'publish-id-1');
+  assert.equal(publish.body.publishId, '123456');
   assert.equal(publish.body.draftMediaId, 'draft-media-id');
   assert.equal(publish.body.state, 'publishing');
 
   const draftCall = calls.find((call) => call.pathname === '/cgi-bin/draft/add');
   assert.equal(typeof draftCall?.body, 'string');
   const draftBody = JSON.parse(String(draftCall?.body));
-  assert.equal(draftBody.articles[0].author, 'Writer');
-  assert.equal(draftBody.articles[0].digest, 'Default digest');
+  assert.equal(draftBody.articles[0].author, 'Updated writer');
+  assert.equal(draftBody.articles[0].digest, 'Updated digest');
   assert.match(draftBody.articles[0].content, /mmbiz\.qpic\.cn\/test\/content-image\.png/);
   assert.doesNotMatch(draftBody.articles[0].content, /automatic-image/);
 
   const status = await request(app)
-    .get('/api/wechat/publish/publish-id-1')
+    .get('/api/wechat/publish/123456')
     .set('authorization', authorization);
   assert.equal(status.statusCode, 200);
   assert.equal(status.body.state, 'published');

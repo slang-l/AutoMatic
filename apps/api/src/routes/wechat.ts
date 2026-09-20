@@ -6,11 +6,25 @@ import { AppError } from '../errors.js';
 import type { WechatService } from '../services/wechat.service.js';
 import { createVerifyRequestOrigin } from './auth.js';
 
-const imageSchema = z
+const imageFields = {
+  data: z.string().min(4),
+  filename: z.string().trim().min(1).max(120),
+};
+
+const coverImageSchema = z
   .object({
-    data: z.string().min(4).max(7_000_000),
+    ...imageFields,
+    data: imageFields.data.max(14_000_000),
     mimeType: z.enum(['image/jpeg', 'image/png', 'image/gif']),
-    filename: z.string().trim().min(1).max(120),
+  })
+  .strict();
+
+const contentImageSchema = z
+  .object({
+    ...imageFields,
+    data: imageFields.data.max(1_400_000),
+    mimeType: z.enum(['image/jpeg', 'image/png']),
+    placeholder: z.string().regex(/^automatic-image:\/\/\d+$/),
   })
   .strict();
 
@@ -20,7 +34,7 @@ const saveConfigSchema = z
       .string()
       .trim()
       .regex(/^wx[A-Za-z0-9]{16}$/),
-    appSecret: z.string().trim().min(16).max(128),
+    appSecret: z.string().trim().min(16).max(128).optional(),
     defaultAuthor: z.string().trim().max(32),
     defaultDigest: z.string().trim().max(120),
   })
@@ -33,16 +47,8 @@ const publishArticleSchema = z
     digest: z.string().trim().max(120),
     content: z.string().trim().min(1).max(1_000_000),
     sourceUrl: z.string().trim().url().max(1_024).optional(),
-    coverImage: imageSchema,
-    contentImages: z
-      .array(
-        imageSchema
-          .extend({
-            placeholder: z.string().regex(/^automatic-image:\/\/\d+$/),
-          })
-          .strict(),
-      )
-      .max(20),
+    coverImage: coverImageSchema,
+    contentImages: z.array(contentImageSchema).max(20),
     showCoverPic: z.boolean(),
     needOpenComment: z.boolean(),
     onlyFansCanComment: z.boolean(),

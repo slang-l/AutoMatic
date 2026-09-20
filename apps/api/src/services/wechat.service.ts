@@ -8,7 +8,8 @@ const WECHAT_API_ORIGIN = 'https://api.weixin.qq.com';
 const CREDENTIAL_VERSION = 'v1';
 const ACCESS_TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1_000;
 const REQUEST_TIMEOUT_MS = 20_000;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_COVER_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_CONTENT_IMAGE_BYTES = 1024 * 1024;
 
 const imageMimeTypes = ['image/jpeg', 'image/png', 'image/gif'] as const;
 type ImageMimeType = (typeof imageMimeTypes)[number];
@@ -23,7 +24,7 @@ export interface WechatPublicConfig {
 
 export interface SaveWechatConfigInput {
   appId: string;
-  appSecret: string;
+  appSecret?: string;
   defaultAuthor: string;
   defaultDigest: string;
 }
@@ -265,7 +266,7 @@ export function createWechatService({
     image: EncodedWechatImage,
     kind: 'cover' | 'content',
   ): Promise<WechatJson> {
-    const bytes = decodeImage(image);
+    const bytes = decodeImage(image, kind);
 
     return withAccessToken(userId, account, (accessToken) => {
       const pathname =
@@ -290,9 +291,23 @@ export function createWechatService({
     },
 
     async saveConfig(userId, input) {
+      const existingAccount = await repository.findAccountByUserId(userId);
+      const appSecret = input.appSecret?.trim()
+        ? input.appSecret
+        : existingAccount?.appId === input.appId
+          ? decryptSecret(existingAccount)
+          : null;
+      if (!appSecret) {
+        throw new AppError(
+          400,
+          'WECHAT_APP_SECRET_REQUIRED',
+          '首次配置或更换 AppID 时必须填写 AppSecret',
+        );
+      }
+
       let verifiedToken: CachedAccessToken;
       try {
-        verifiedToken = await requestStableToken(input.appId, input.appSecret);
+        verifiedToken = await requestStableToken(input.appId, appSecret);
       } catch (error) {
         throw normalizeWechatError(error);
       }
@@ -301,7 +316,7 @@ export function createWechatService({
         userId,
         appId: input.appId,
         encryptedAppSecret: encryptCredential(
-          input.appSecret,
+          appSecret,
           encryptionKey,
           credentialAssociatedData(userId, input.appId),
         ),
@@ -356,7 +371,7 @@ export function createWechatService({
       });
 
       return {
-        publishId: readRequiredString(publishResult, 'publish_id'),
+        publishId: readRequiredIdentifier(publishResult, 'publish_id'),
         draftMediaId,
         messageDataId: readOptionalString(publishResult, 'msg_data_id'),
         state: 'publishing',
@@ -432,21 +447,33 @@ function toPublicConfig(account: WechatAccount): WechatPublicConfig {
   };
 }
 
-function decodeImage(image: EncodedWechatImage): Buffer {
-  if (!imageMimeTypes.includes(image.mimeType)) {
-    throw new AppError(400, 'INVALID_IMAGE_TYPE', '图片仅支持 JPEG、PNG 或 GIF');
+function decodeImage(image: EncodedWechatImage, kind: 'cover' | 'content'): Buffer {
+  if (
+    !imageMimeTypes.includes(image.mimeType) ||
+    (kind === 'content' && image.mimeType === 'image/gif')
+  ) {
+    throw new AppError(
+      400,
+      'INVALID_IMAGE_TYPE',
+      kind === 'cover' ? '封面仅支持 JPEG、PNG 或 GIF' : '正文图片仅支持 JPEG 或 PNG',
+    );
   }
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(image.data)) {
     throw new AppError(400, 'INVALID_IMAGE_DATA', '图片数据无效');
   }
 
   const bytes = Buffer.from(image.data, 'base64');
+  const maxBytes = kind === 'cover' ? MAX_COVER_IMAGE_BYTES : MAX_CONTENT_IMAGE_BYTES;
   if (
     bytes.length === 0 ||
-    bytes.length > MAX_IMAGE_BYTES ||
+    bytes.length > maxBytes ||
     !matchesImageSignature(bytes, image.mimeType)
   ) {
-    throw new AppError(400, 'INVALID_IMAGE_DATA', '图片为空、超过 5 MB 或格式与文件内容不一致');
+    throw new AppError(
+      400,
+      'INVALID_IMAGE_DATA',
+      `${kind === 'cover' ? '封面' : '正文图片'}为空、超过 ${kind === 'cover' ? '10 MB' : '1 MB'} 或格式与文件内容不一致`,
+    );
   }
   return bytes;
 }
@@ -524,6 +551,14 @@ function publishStatusMessage(statusCode: number): string {
 function readRequiredString(value: WechatJson, key: string): string {
   const candidate = value[key];
   if (typeof candidate !== 'string' || !candidate) {
+    throw new UpstreamServiceError('WECHAT_INVALID_RESPONSE', `微信接口响应缺少 ${key}`);
+  }
+  return candidate;
+}
+
+function readRequiredIdentifier(value: WechatJson, key: string): string {
+  const candidate = readOptionalString(value, key);
+  if (!candidate) {
     throw new UpstreamServiceError('WECHAT_INVALID_RESPONSE', `微信接口响应缺少 ${key}`);
   }
   return candidate;

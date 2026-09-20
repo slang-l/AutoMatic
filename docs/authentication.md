@@ -8,7 +8,7 @@ HttpOnly Refresh Cookie 维持登录状态。
 
 认证模块已经完成以下闭环：
 
-- 邮箱注册、密码登录和退出登录；
+- 邮箱验证码注册、密码登录和退出登录；
 - HS256 Access JWT 的签发与校验；
 - Refresh Token 的服务端持久化、轮换、绝对过期和重放检测；
 - PostgreSQL 用户与 Refresh Session 仓库及 SQL 迁移；
@@ -20,21 +20,23 @@ HttpOnly Refresh Cookie 维持登录状态。
 
 ### 关键代码位置
 
-| 文件                                               | 职责                                             |
-| -------------------------------------------------- | ------------------------------------------------ |
-| `apps/api/src/config.ts`                           | 读取并校验服务端环境变量                         |
-| `apps/api/src/server.ts`                           | 生产式进程入口，创建 PostgreSQL 连接池并注入仓库 |
-| `apps/api/src/app.ts`                              | 组装 Express、中间件、服务和路由                 |
-| `apps/api/src/services/token.service.ts`           | 签发/验证 Access JWT，生成并哈希 Refresh Token   |
-| `apps/api/src/services/auth.service.ts`            | 注册、登录、刷新、重放处理和退出的业务规则       |
-| `apps/api/src/routes/auth.ts`                      | 输入校验、Cookie 设置和 HTTP 响应                |
-| `apps/api/src/middlewares/auth.middleware.ts`      | Bearer JWT 校验与当前用户复查                    |
-| `apps/api/src/repositories/auth.repository.ts`     | 持久化接口与公开用户字段映射                     |
-| `apps/api/src/repositories/postgres.repository.ts` | PostgreSQL 实现和事务化 Token 轮换               |
-| `apps/api/src/repositories/memory.repository.ts`   | 面向测试的隔离内存实现                           |
-| `apps/api/migrations/001_auth.sql`                 | `users`、`refresh_sessions` 表和索引             |
-| `apps/web/src/services/auth-api.ts`                | 浏览器端 Token 内存管理、刷新合并与请求重试      |
-| `apps/web/src/App.tsx`                             | 应用启动恢复会话及登录状态切换                   |
+| 文件                                                                | 职责                                             |
+| ------------------------------------------------------------------- | ------------------------------------------------ |
+| `apps/api/src/config.ts`                                            | 读取并校验服务端环境变量                         |
+| `apps/api/src/server.ts`                                            | 生产式进程入口，创建 PostgreSQL 连接池并注入仓库 |
+| `apps/api/src/app.ts`                                               | 组装 Express、中间件、服务和路由                 |
+| `apps/api/src/services/token.service.ts`                            | 签发/验证 Access JWT，生成并哈希 Refresh Token   |
+| `apps/api/src/services/auth.service.ts`                             | 注册、登录、刷新、重放处理和退出的业务规则       |
+| `apps/api/src/services/registration-verification.service.ts`        | 验证码生成、过期、重试与失败次数限制             |
+| `apps/api/src/services/registration-verification-sender.service.ts` | 通过 Resend 投递验证码邮件                       |
+| `apps/api/src/routes/auth.ts`                                       | 输入校验、Cookie 设置和 HTTP 响应                |
+| `apps/api/src/middlewares/auth.middleware.ts`                       | Bearer JWT 校验与当前用户复查                    |
+| `apps/api/src/repositories/auth.repository.ts`                      | 持久化接口与公开用户字段映射                     |
+| `apps/api/src/repositories/postgres.repository.ts`                  | PostgreSQL 实现和事务化 Token 轮换               |
+| `apps/api/src/repositories/memory.repository.ts`                    | 面向测试的隔离内存实现                           |
+| `apps/api/migrations/001_auth.sql`                                  | `users`、`refresh_sessions` 表和索引             |
+| `apps/web/src/services/auth-api.ts`                                 | 浏览器端 Token 内存管理、刷新合并与请求重试      |
+| `apps/web/src/App.tsx`                                              | 应用启动恢复会话及登录状态切换                   |
 
 ## 2. 架构与安全选择
 
@@ -113,8 +115,8 @@ JWT 中的角色不是用户状态的最终事实。`requireAuth` 验证 JWT 后
 ### 3.1 注册或登录
 
 ```text
-用户提交邮箱和密码
-  → 服务端校验输入/密码
+用户先获取并提交邮箱验证码、邮箱和密码
+  → 服务端校验验证码/输入/密码
   → 创建新的 familyId
   → 生成随机 Refresh Token
   → 数据库只保存 SHA-256(token)
@@ -196,7 +198,37 @@ Access JWT 是无状态凭据，当前没有 Access Token denylist。退出后�
 响应头 `x-request-id` 与 `error.requestId` 一致。客户端也可以主动发送
 `x-request-id` 便于串联日志。
 
-### 4.1 `POST /api/auth/register`
+### 4.1 `POST /api/auth/register/verification-code`
+
+请求：
+
+```json
+{
+  "email": "writer@example.com"
+}
+```
+
+成功：`201 Created`。验证码有效期为 10 分钟，同一邮箱 60 秒后才能再次获取：
+
+```json
+{
+  "expiresInSeconds": 600,
+  "resendAfterSeconds": 60,
+  "testCode": "123456"
+}
+```
+
+`testCode` 只在 `development` 和 `test` 环境返回，Web 注册页会直接显示它，便于本地
+测试。生产环境不会返回验证码，必须配置邮件发送服务。
+
+常见失败：
+
+- `400 INVALID_REQUEST`：邮箱格式不正确；
+- `409 EMAIL_ALREADY_EXISTS`：邮箱已经注册；
+- `429 VERIFICATION_CODE_RATE_LIMITED`：尚未到允许重新获取的时间；
+- `502 VERIFICATION_CODE_DELIVERY_FAILED`：邮件服务投递失败，用户可以立即重试。
+
+### 4.2 `POST /api/auth/register`
 
 请求：
 
@@ -207,6 +239,7 @@ Content-Type: application/json
 {
   "email": "writer@example.com",
   "password": "correct horse battery staple",
+  "verificationCode": "123456",
   "name": "Writer"
 }
 ```
@@ -233,9 +266,13 @@ Set-Cookie: automatic_refresh_token=<opaque-token>; Path=/api/auth; Expires=...;
 常见失败：
 
 - `400 INVALID_REQUEST`：字段缺失、多余、格式错误或密码不符合限制；
+- `400 VERIFICATION_CODE_REQUIRED`：尚未获取验证码；
+- `400 INVALID_VERIFICATION_CODE`：验证码不正确；
+- `400 VERIFICATION_CODE_EXPIRED`：验证码已经过期；
+- `400 VERIFICATION_CODE_ATTEMPTS_EXCEEDED`：错误次数已达到上限，需要重新获取；
 - `409 EMAIL_ALREADY_EXISTS`：规范化后的邮箱已经注册。
 
-### 4.2 `POST /api/auth/login`
+### 4.3 `POST /api/auth/login`
 
 请求：
 
@@ -256,7 +293,7 @@ Set-Cookie: automatic_refresh_token=<opaque-token>; Path=/api/auth; Expires=...;
 
 邮箱不存在和密码错误使用完全相同的公开错误，避免泄露账号是否存在。
 
-### 4.3 `POST /api/auth/refresh`
+### 4.4 `POST /api/auth/refresh`
 
 请求体为空，浏览器自动携带 Cookie：
 
@@ -271,7 +308,7 @@ Access Token 和当前公开用户信息。
 失败：`401 INVALID_REFRESH_TOKEN`。服务端有意不区分 Cookie 缺失、Token 不存在、
 已过期、已撤销或用户失效，避免暴露内部会话状态。
 
-### 4.4 `POST /api/auth/logout`
+### 4.5 `POST /api/auth/logout`
 
 ```http
 POST /api/auth/logout HTTP/1.1
@@ -281,7 +318,7 @@ Cookie: automatic_refresh_token=<opaque-token>
 成功：`204 No Content`，没有 JSON 响应体。无论 Cookie 是否存在都会清除客户端 Cookie；
 如果能找到对应 Session，则撤销整个 family。
 
-### 4.5 `GET /api/auth/me`
+### 4.6 `GET /api/auth/me`
 
 ```http
 GET /api/auth/me HTTP/1.1
@@ -310,14 +347,20 @@ Authorization: Bearer <access-token>
 除 `/me` 这一安全读取接口外，认证写接口还可能返回
 `403 UNTRUSTED_ORIGIN`，表示浏览器来源不在配置的白名单中。
 
-### 4.6 使用 curl 验证完整流程
+### 4.7 使用 curl 验证完整流程
 
 以下命令使用 Cookie Jar 保存 HttpOnly Cookie。先启动数据库、执行迁移并启动 API：
 
 ```bash
+curl -s \
+  -H "Content-Type: application/json" \
+  -d '{"email":"writer@example.com"}' \
+  http://localhost:3000/api/auth/register/verification-code
+
+# 从上一步的开发环境响应中复制 testCode
 curl -i -c cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{"email":"writer@example.com","password":"correct horse battery staple","name":"Writer"}' \
+  -d '{"email":"writer@example.com","password":"correct horse battery staple","verificationCode":"123456","name":"Writer"}' \
   http://localhost:3000/api/auth/register
 
 curl -i -b cookies.txt -c cookies.txt \
@@ -366,22 +409,41 @@ authenticatedRequest('/api/auth/me')
 
 服务端模板位于 `apps/api/.env.example`：
 
-| 变量                     | 示例/默认                                     | 校验和含义                                      |
-| ------------------------ | --------------------------------------------- | ----------------------------------------------- |
-| `NODE_ENV`               | `development`                                 | 只允许 `development`、`test`、`production`      |
-| `HOST`                   | `0.0.0.0`                                     | API 监听地址                                    |
-| `PORT`                   | `3000`                                        | 1～65535 的整数                                 |
-| `CORS_ORIGINS`           | `http://localhost:5173,http://127.0.0.1:5173` | 显式 Origin 列表，逗号分隔；启用凭据时禁止 `*`  |
+| 变量                     | 示例/默认                                                   | 校验和含义                                      |
+| ------------------------ | ----------------------------------------------------------- | ----------------------------------------------- |
+| `NODE_ENV`               | `development`                                               | 只允许 `development`、`test`、`production`      |
+| `HOST`                   | `0.0.0.0`                                                   | API 监听地址                                    |
+| `PORT`                   | `3000`                                                      | 1～65535 的整数                                 |
+| `CORS_ORIGINS`           | `http://localhost:5173,http://127.0.0.1:5173`               | 显式 Origin 列表，逗号分隔；启用凭据时禁止 `*`  |
 | `DATABASE_URL`           | `postgresql://automatic:automatic@localhost:5432/automatic` | 必填的 PostgreSQL URL                           |
-| `JWT_ACCESS_SECRET`      | 无安全默认值                                  | 必填，至少 32 个字符；兼容旧变量名 `JWT_SECRET` |
-| `JWT_ISSUER`             | `automatic-api`                               | 必填，必须与 Token 验证端一致                   |
-| `JWT_AUDIENCE`           | `automatic-web`                               | 必填，必须与 Token 验证端一致                   |
-| `ACCESS_TOKEN_TTL`       | `15m`                                         | `数字+s/m/h/d`，实际范围 60 秒～1 天            |
-| `REFRESH_TOKEN_TTL_DAYS` | `7`                                           | 1～90 的整数，表示 family 绝对寿命              |
-| `DEV_ADMIN_ENABLED`      | `true`（仅 development）                      | 是否在 API 启动时幂等初始化本地管理员           |
-| `DEV_ADMIN_EMAIL`        | `admin@qq.com`                                | 本地管理员邮箱                                  |
-| `DEV_ADMIN_PASSWORD`     | `123456`                                      | 本地管理员密码；已知弱口令，不得进入生产        |
-| `DEV_ADMIN_NAME`         | `系统管理员`                                  | 本地管理员显示名称                              |
+| `JWT_ACCESS_SECRET`      | 无安全默认值                                                | 必填，至少 32 个字符；兼容旧变量名 `JWT_SECRET` |
+| `JWT_ISSUER`             | `automatic-api`                                             | 必填，必须与 Token 验证端一致                   |
+| `JWT_AUDIENCE`           | `automatic-web`                                             | 必填，必须与 Token 验证端一致                   |
+| `ACCESS_TOKEN_TTL`       | `15m`                                                       | `数字+s/m/h/d`，实际范围 60 秒～1 天            |
+| `REFRESH_TOKEN_TTL_DAYS` | `7`                                                         | 1～90 的整数，表示 family 绝对寿命              |
+| `RESEND_API_KEY`         | 空                                                          | 可选；Resend API Key                            |
+| `RESEND_FROM`            | 空                                                          | 可选；如 `AutoMatic <verify@example.com>`       |
+| `DEV_ADMIN_ENABLED`      | `true`（仅 development）                                    | 是否在 API 启动时幂等初始化本地管理员           |
+| `DEV_ADMIN_EMAIL`        | `admin@qq.com`                                              | 本地管理员邮箱                                  |
+| `DEV_ADMIN_PASSWORD`     | `123456`                                                    | 本地管理员密码；已知弱口令，不得进入生产        |
+| `DEV_ADMIN_NAME`         | `系统管理员`                                                | 本地管理员显示名称                              |
+
+### 注册验证码与邮件投递
+
+本地开发不要求邮件服务。`NODE_ENV=development` 时，获取验证码的响应包含 `testCode`，
+Web 页面会把它显示在验证码输入框下方。
+
+需要发送真实邮件时，在 `apps/api/.env` 中同时配置：
+
+```dotenv
+RESEND_API_KEY=your-resend-api-key
+RESEND_FROM="AutoMatic <verify@your-domain.example>"
+```
+
+启用真实邮件时，`RESEND_API_KEY` 和 `RESEND_FROM` 必须同时存在，只配置其中一个会
+导致 API 拒绝启动。发件域名需要先在 Resend 控制台完成验证。邮件投递失败时，本次验证码会立即失效并解除重发冷却，接口返回
+`502 VERIFICATION_CODE_DELIVERY_FAILED`，因此用户可以直接重试，不会被一个未收到的
+验证码锁住。
 
 ### 开发管理员
 
@@ -482,7 +544,7 @@ pnpm check
 
 - 不需要 Docker 或本机 PostgreSQL；
 - 每个 app 实例拥有独立用户和 Session，不会污染其他用例；
-- 覆盖注册、重复邮箱、登录、Bearer 校验、Cookie 安全属性、来源校验、轮换、并发
+- 覆盖验证码注册与投递失败、重复邮箱、登录、Bearer 校验、Cookie 安全属性、来源校验、轮换、并发
   消费、重放撤销 family、退出、输入校验、配置校验和统一错误响应；
 - **不验证 PostgreSQL SQL、事务、迁移或真实连接行为**。
 

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 
 import type { AppConfig } from '../config.js';
-import { AppError } from '../errors.js';
+import { AppError, UpstreamServiceError } from '../errors.js';
 import { toPublicUser, type AuthRepository } from '../repositories/auth.repository.js';
 import type { PublicUser, User } from '../type/auth.js';
 import { generateRefreshToken, hashRefreshToken, type TokenService } from './token.service.js';
@@ -11,6 +11,7 @@ import type {
   RegistrationVerificationChallenge,
   RegistrationVerificationService,
 } from './registration-verification.service.js';
+import type { RegistrationVerificationCodeSender } from './registration-verification-sender.service.js';
 
 export interface Credentials {
   email: string;
@@ -48,6 +49,7 @@ export interface CreateAuthServiceOptions {
   registrationVerificationService: RegistrationVerificationService;
   tokenService: TokenService;
   passwordHashRounds?: number;
+  registrationVerificationCodeSender?: RegistrationVerificationCodeSender;
 }
 
 // 用于不存在用户时执行一次真实 bcrypt compare，降低邮箱枚举的时序差异。
@@ -60,6 +62,7 @@ export function createAuthService(options: CreateAuthServiceOptions): AuthServic
     registrationVerificationService,
     tokenService,
     passwordHashRounds = 12,
+    registrationVerificationCodeSender,
   } = options;
   const dummyPasswordHash =
     passwordHashRounds === 12
@@ -109,7 +112,30 @@ export function createAuthService(options: CreateAuthServiceOptions): AuthServic
         throw new AppError(409, 'EMAIL_ALREADY_EXISTS', 'Email is already registered');
       }
 
-      return registrationVerificationService.issue(email);
+      let issuedCode: string | undefined;
+      const challenge = registrationVerificationService.issue(email, (code) => {
+        issuedCode = code;
+      });
+
+      if (registrationVerificationCodeSender && issuedCode) {
+        try {
+          await registrationVerificationCodeSender.send({
+            email: email.trim().toLowerCase(),
+            code: issuedCode,
+            expiresInSeconds: challenge.expiresInSeconds,
+          });
+        } catch {
+          // A code that was not delivered must not remain rate-limited or be
+          // accepted later by a user who never received it.
+          registrationVerificationService.consume(email);
+          throw new UpstreamServiceError(
+            'VERIFICATION_CODE_DELIVERY_FAILED',
+            'Unable to deliver verification code',
+          );
+        }
+      }
+
+      return challenge;
     },
 
     async register(input, metadata) {

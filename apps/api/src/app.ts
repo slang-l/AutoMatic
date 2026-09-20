@@ -24,17 +24,24 @@ import {
   createRegistrationVerificationService,
   type RegistrationVerificationService,
 } from './services/registration-verification.service.js';
+import type { RegistrationVerificationCodeSender } from './services/registration-verification-sender.service.js';
 import { createTokenService } from './services/token.service.js';
 import { createWechatService } from './services/wechat.service.js';
+import type { CollaborationRepository } from './repositories/collaboration.repository.js';
+import { createMemoryCollaborationRepository } from './repositories/memory-collaboration.repository.js';
+import { createCollaborationService } from './services/collaboration.service.js';
+import { createCollaborationRouter } from './routes/collaboration.js';
 
 export interface BuildAppOptions {
   config?: AppConfig;
   logger?: Pick<Console, 'error'> | false;
   authRepository?: AuthRepository;
+  collaborationRepository?: CollaborationRepository;
   brandAssetRepository?: BrandAssetRepository;
   wechatRepository?: WechatRepository;
   wechatFetch?: typeof fetch;
   registrationVerificationService?: RegistrationVerificationService;
+  registrationVerificationCodeSender?: RegistrationVerificationCodeSender;
   passwordHashRounds?: number;
 }
 
@@ -128,7 +135,7 @@ export function buildApp(options: BuildAppOptions = {}): Express {
   const registrationVerificationService =
     options.registrationVerificationService ??
     createRegistrationVerificationService({
-      // Brevo 接入前仅在开发/测试响应中暴露验证码，生产响应绝不包含测试码。
+      // 开发/测试环境在页面展示测试码；生产响应永远不包含验证码。
       exposeTestCode: config.nodeEnv !== 'production',
     });
   const authService = createAuthService({
@@ -137,6 +144,7 @@ export function buildApp(options: BuildAppOptions = {}): Express {
     registrationVerificationService,
     tokenService,
     passwordHashRounds: options.passwordHashRounds,
+    registrationVerificationCodeSender: options.registrationVerificationCodeSender,
   });
   const requireAuth = createRequireAuth(tokenService, repository);
   const brandAssetService = createBrandAssetService(brandAssetRepository);
@@ -166,6 +174,17 @@ export function buildApp(options: BuildAppOptions = {}): Express {
     createBrandAssetRouter({ config, requireAuth, service: brandAssetService }),
   );
   app.use('/api/wechat', createWechatRouter({ config, requireAuth, wechatService }));
+  app.use(
+    '/api/collaboration',
+    createCollaborationRouter({
+      config,
+      requireAuth,
+      service: createCollaborationService(
+        options.collaborationRepository ?? createMemoryCollaborationRepository(repository),
+        repository,
+      ),
+    }),
+  );
   registerErrorHandlers(app, logger);
 
   return app;
