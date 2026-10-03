@@ -1,3 +1,8 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { getDocsOwnerId, useDocsStore } from '../../store/docsStore';
 import {
   CheckCircle2,
@@ -172,15 +177,6 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
     };
   }, [open, publishStatus?.state, submission]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, open]);
-
   if (!open) return null;
 
   const isBusy = busyAction !== null;
@@ -295,24 +291,32 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
   };
 
   return (
-    <div
-      className="publish-modal-backdrop ui-modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="publish-modal-title"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
     >
-      <section className="publish-modal-dialog ui-modal-surface">
+      <DialogContent
+        aria-labelledby="publish-modal-title"
+        className="publish-modal-dialog gap-0 p-0"
+        showCloseButton={false}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <DialogDescription className="sr-only">配置公众号并确认文章发布信息</DialogDescription>
         <header className="publish-modal-header">
           <div className="publish-modal-heading">
             <span className="publish-modal-heading-icon" aria-hidden="true">
               <Radio size={18} />
             </span>
             <div>
-              <h2 id="publish-modal-title">一键发布到公众号</h2>
+              <DialogTitle id="publish-modal-title">一键发布到公众号</DialogTitle>
               <p>{config?.configured ? config.appId : '公众号开发配置'}</p>
             </div>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             className="publish-icon-button"
             type="button"
             aria-label="关闭"
@@ -320,7 +324,7 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
             onClick={onClose}
           >
             <X size={18} />
-          </button>
+          </Button>
         </header>
 
         {errorMessage ? (
@@ -354,9 +358,9 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                 </p>
               </div>
               <div className="publish-field-grid">
-                <label className="publish-field publish-field-wide">
+                <Label className="publish-field publish-field-wide">
                   <span>AppID</span>
-                  <input
+                  <Input
                     value={appId}
                     required
                     maxLength={18}
@@ -365,11 +369,11 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                     autoComplete="off"
                     onChange={(event) => setAppId(event.target.value)}
                   />
-                </label>
-                <label className="publish-field publish-field-wide">
+                </Label>
+                <Label className="publish-field publish-field-wide">
                   <span>AppSecret</span>
                   <span className="publish-secret-input">
-                    <input
+                    <Input
                       type={showSecret ? 'text' : 'password'}
                       value={appSecret}
                       required={!config?.configured || appId !== config.appId}
@@ -379,37 +383,41 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                       autoComplete="new-password"
                       onChange={(event) => setAppSecret(event.target.value)}
                     />
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       type="button"
                       aria-label={showSecret ? '隐藏 AppSecret' : '显示 AppSecret'}
                       title={showSecret ? '隐藏 AppSecret' : '显示 AppSecret'}
                       onClick={() => setShowSecret((visible) => !visible)}
                     >
                       {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                    </Button>
                   </span>
-                </label>
-                <label className="publish-field">
+                </Label>
+                <Label className="publish-field">
                   <span>默认作者</span>
-                  <input
+                  <Input
                     value={defaultAuthor}
                     maxLength={32}
                     onChange={(event) => setDefaultAuthor(event.target.value)}
                   />
-                </label>
-                <label className="publish-field">
+                </Label>
+                <Label className="publish-field">
                   <span>默认摘要</span>
-                  <input
+                  <Input
                     value={defaultDigest}
                     maxLength={120}
                     onChange={(event) => setDefaultDigest(event.target.value)}
                   />
-                </label>
+                </Label>
               </div>
             </div>
             <footer className="publish-modal-footer">
               {config?.configured ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className={`publish-danger-button ${confirmDelete ? 'is-confirming' : ''}`}
                   type="button"
                   disabled={isBusy}
@@ -417,29 +425,37 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                 >
                   <Trash2 size={15} />
                   {confirmDelete ? '确认移除' : '移除配置'}
-                </button>
+                </Button>
               ) : (
                 <span />
               )}
               <div className="publish-footer-actions">
                 {config?.configured ? (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="publish-secondary-button"
                     type="button"
                     disabled={isBusy}
                     onClick={() => setEditingConfig(false)}
                   >
                     取消
-                  </button>
+                  </Button>
                 ) : null}
-                <button className="publish-primary-button" type="submit" disabled={isBusy}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="publish-primary-button"
+                  type="submit"
+                  disabled={isBusy}
+                >
                   {busyAction === 'saving-config' ? (
                     <LoaderCircle size={16} className="animate-spin" />
                   ) : (
                     <Save size={16} />
                   )}
                   验证并保存
-                </button>
+                </Button>
               </div>
             </footer>
           </form>
@@ -463,14 +479,19 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                   <CheckCircle2 size={15} />
                   凭据验证通过
                 </span>
-                <button type="button" onClick={() => setEditingConfig(true)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={() => setEditingConfig(true)}
+                >
                   <Settings2 size={14} />
                   配置
-                </button>
+                </Button>
               </div>
 
               <div className="publish-compose-grid">
-                <label className={`publish-cover-field ${coverPreviewUrl ? 'has-image' : ''}`}>
+                <Label className={`publish-cover-field ${coverPreviewUrl ? 'has-image' : ''}`}>
                   {coverPreviewUrl ? (
                     <img src={coverPreviewUrl} alt="文章封面" />
                   ) : (
@@ -482,46 +503,46 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                     accept="image/jpeg,image/png,image/gif"
                     onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)}
                   />
-                </label>
+                </Label>
 
                 <div className="publish-field-grid">
-                  <label className="publish-field publish-field-wide">
+                  <Label className="publish-field publish-field-wide">
                     <span>文章标题</span>
-                    <input
+                    <Input
                       value={title}
                       required
                       maxLength={64}
                       onChange={(event) => setTitle(event.target.value)}
                     />
-                  </label>
-                  <label className="publish-field">
+                  </Label>
+                  <Label className="publish-field">
                     <span>作者</span>
-                    <input
+                    <Input
                       value={author}
                       maxLength={32}
                       onChange={(event) => setAuthor(event.target.value)}
                     />
-                  </label>
-                  <label className="publish-field">
+                  </Label>
+                  <Label className="publish-field">
                     <span>原文链接</span>
-                    <input
+                    <Input
                       type="url"
                       value={sourceUrl}
                       maxLength={1_024}
                       placeholder="https://"
                       onChange={(event) => setSourceUrl(event.target.value)}
                     />
-                  </label>
-                  <label className="publish-field publish-field-wide">
+                  </Label>
+                  <Label className="publish-field publish-field-wide">
                     <span>摘要</span>
-                    <textarea
+                    <Textarea
                       value={digest}
                       maxLength={120}
                       rows={3}
                       onChange={(event) => setDigest(event.target.value)}
                     />
                     <small>{digest.length}/120</small>
-                  </label>
+                  </Label>
                 </div>
               </div>
 
@@ -548,15 +569,23 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
             <footer className="publish-modal-footer">
               <span className="publish-footer-meta">{config?.appId}</span>
               <div className="publish-footer-actions">
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="publish-secondary-button"
                   type="button"
                   disabled={isBusy}
                   onClick={onClose}
                 >
                   取消
-                </button>
-                <button className="publish-primary-button" type="submit" disabled={isBusy}>
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="publish-primary-button"
+                  type="submit"
+                  disabled={isBusy}
+                >
                   {isBusy ? (
                     <LoaderCircle size={16} className="animate-spin" />
                   ) : (
@@ -567,13 +596,13 @@ export function PublishModal({ content, doc, open, onClose, onCopyLink }: Publis
                     : busyAction === 'publishing'
                       ? '正在提交'
                       : '发布到公众号'}
-                </button>
+                </Button>
               </div>
             </footer>
           </form>
         )}
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -632,22 +661,36 @@ function PublishStatusView({
       </dl>
 
       <footer className="publish-modal-footer">
-        <button className="publish-secondary-button" type="button" onClick={onPublishAgain}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="publish-secondary-button"
+          type="button"
+          onClick={onPublishAgain}
+        >
           返回
-        </button>
+        </Button>
         <div className="publish-footer-actions">
-          <button className="publish-secondary-button" type="button" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="publish-secondary-button"
+            type="button"
+            onClick={onClose}
+          >
             关闭
-          </button>
+          </Button>
           {status.articleUrl ? (
-            <button
+            <Button
+              variant="default"
+              size="sm"
               className="publish-primary-button"
               type="button"
               onClick={() => onCopyLink(status.articleUrl!)}
             >
               <Copy size={16} />
               复制链接
-            </button>
+            </Button>
           ) : null}
         </div>
       </footer>
@@ -667,7 +710,7 @@ function ToggleOption({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className={`publish-toggle ${disabled ? 'is-disabled' : ''}`}>
+    <Label className={`publish-toggle ${disabled ? 'is-disabled' : ''}`}>
       <span>{label}</span>
       <input
         type="checkbox"
@@ -676,7 +719,7 @@ function ToggleOption({
         onChange={(event) => onChange(event.target.checked)}
       />
       <span className="publish-toggle-track" aria-hidden="true" />
-    </label>
+    </Label>
   );
 }
 

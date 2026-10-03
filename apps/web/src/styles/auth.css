@@ -1,0 +1,33 @@
+.auth-page {
+  overflow-y: auto;
+}
+
+.auth-page-grid {
+  opacity: 0.3;
+  background-image:
+    linear-gradient(to right, rgba(78, 74, 64, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(78, 74, 64, 0.14) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 18% 48%, black, transparent 64%);
+}
+
+.auth-story-reveal,
+.auth-form-reveal {
+  animation: ui-reveal 280ms var(--ui-ease-out) both;
+}
+
+.auth-form-reveal {
+  animation-delay: 50ms;
+}
+
+@keyframes ui-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--ui-enter-offset));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

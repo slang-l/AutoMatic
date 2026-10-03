@@ -1,3 +1,6 @@
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   BellRing,
   ExternalLink,
@@ -149,7 +152,9 @@ export function ContentComponentLibrary({
               <p>{contentComponents.length} 个可复用内容模块</p>
             </div>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             className="content-library-close"
             type="button"
             aria-label="关闭内容组件"
@@ -157,13 +162,13 @@ export function ContentComponentLibrary({
             onClick={() => onOpenChange(false)}
           >
             <X size={18} />
-          </button>
+          </Button>
         </header>
 
         <div className="content-library-controls">
-          <label className="content-library-search">
+          <Label className="content-library-search">
             <Search size={16} aria-hidden="true" />
-            <input
+            <Input
               ref={searchRef}
               type="search"
               value={query}
@@ -172,15 +177,23 @@ export function ContentComponentLibrary({
               onChange={(event) => setQuery(event.target.value)}
             />
             {query ? (
-              <button type="button" aria-label="清除搜索" onClick={() => setQuery('')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                type="button"
+                aria-label="清除搜索"
+                onClick={() => setQuery('')}
+              >
                 <X size={14} />
-              </button>
+              </Button>
             ) : null}
-          </label>
+          </Label>
 
           <div className="content-library-categories" role="tablist" aria-label="组件分类">
             {contentComponentCategories.map((option) => (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 key={option.id}
                 type="button"
                 role="tab"
@@ -189,7 +202,7 @@ export function ContentComponentLibrary({
                 onClick={() => setCategory(option.id)}
               >
                 {option.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -232,7 +245,13 @@ function ComponentCard({
   const Icon = componentIcons[component.icon];
 
   return (
-    <button className="content-component-card" type="button" onClick={onInsert}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="content-component-card"
+      type="button"
+      onClick={onInsert}
+    >
       <span className="content-component-card-icon" aria-hidden="true">
         <Icon size={18} />
       </span>
@@ -243,6 +262,6 @@ function ComponentCard({
       <span className="content-component-card-action" aria-hidden="true">
         <Plus size={15} />
       </span>
-    </button>
+    </Button>
   );
 }

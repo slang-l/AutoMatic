@@ -30,7 +30,21 @@ export interface BlockSuiteEditorHandle {
   runAction: (action: EditorAction) => void;
 }
 
-export type EditorAction = 'undo' | 'redo' | 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'link' | 'text' | 'heading' | 'quote' | 'bulleted' | 'numbered' | 'todo';
+export type EditorAction =
+  | 'undo'
+  | 'redo'
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strike'
+  | 'code'
+  | 'link'
+  | 'text'
+  | 'heading'
+  | 'quote'
+  | 'bulleted'
+  | 'numbered'
+  | 'todo';
 export type EditorToolbarState = Partial<Record<EditorAction, boolean>>;
 
 function readToolbarState(editor: AffineEditorContainer): EditorToolbarState {
@@ -40,21 +54,39 @@ function readToolbarState(editor: AffineEditorContainer): EditorToolbarState {
     const [active] = editor.host.std.command.chain().isTextStyleActive({ key }).run();
     state[key] = active;
   }
-  const [, context] = editor.host.std.command.chain()
-    .getSelectedModels({ types: ['text', 'block'] }).run();
+  const [, context] = editor.host.std.command
+    .chain()
+    .getSelectedModels({ types: ['text', 'block'] })
+    .run();
   const models = context.selectedModels ?? [];
   for (const key of ['text', 'heading', 'quote', 'bulleted', 'numbered', 'todo'] as const) {
-    const flavour = ['bulleted', 'numbered', 'todo'].includes(key) ? 'affine:list' : 'affine:paragraph';
-    state[key] = models.length > 0 && models.every((model) =>
-      model.flavour === flavour && 'type' in model && model.type === (key === 'heading' ? 'h2' : key),
-    );
+    const flavour = ['bulleted', 'numbered', 'todo'].includes(key)
+      ? 'affine:list'
+      : 'affine:paragraph';
+    state[key] =
+      models.length > 0 &&
+      models.every(
+        (model) =>
+          model.flavour === flavour &&
+          'type' in model &&
+          model.type === (key === 'heading' ? 'h2' : key),
+      );
   }
   return state;
 }
 
 export const BlockSuiteEditor = forwardRef<BlockSuiteEditorHandle, BlockSuiteEditorProps>(
   function BlockSuiteEditor(
-    { author, docId, title, updatedAt, blocks, onBlocksChange, onTitleChange, onToolbarStateChange },
+    {
+      author,
+      docId,
+      title,
+      updatedAt,
+      blocks,
+      onBlocksChange,
+      onTitleChange,
+      onToolbarStateChange,
+    },
     ref,
   ) {
     const hostRef = useRef<HTMLDivElement>(null);
@@ -78,20 +110,40 @@ export const BlockSuiteEditor = forwardRef<BlockSuiteEditorHandle, BlockSuiteEdi
           const chain = editor.host.std.command.chain();
           try {
             switch (action) {
-              case 'undo': editor.doc.undo(); return;
-              case 'redo': editor.doc.redo(); return;
-              case 'bold': chain.toggleBold().run(); return;
-              case 'italic': chain.toggleItalic().run(); return;
-              case 'underline': chain.toggleUnderline().run(); return;
-              case 'strike': chain.toggleStrike().run(); return;
-              case 'code': chain.toggleCode().run(); return;
-              case 'link': chain.toggleLink().run(); return;
+              case 'undo':
+                editor.doc.undo();
+                return;
+              case 'redo':
+                editor.doc.redo();
+                return;
+              case 'bold':
+                chain.toggleBold().run();
+                return;
+              case 'italic':
+                chain.toggleItalic().run();
+                return;
+              case 'underline':
+                chain.toggleUnderline().run();
+                return;
+              case 'strike':
+                chain.toggleStrike().run();
+                return;
+              case 'code':
+                chain.toggleCode().run();
+                return;
+              case 'link':
+                chain.toggleLink().run();
+                return;
               default:
                 const nextAction = readToolbarState(editor)[action] ? 'text' : action;
-                chain.updateBlockType({
-                  flavour: ['bulleted', 'numbered', 'todo'].includes(nextAction) ? 'affine:list' : 'affine:paragraph',
-                  props: { type: nextAction === 'heading' ? 'h2' : nextAction },
-                }).run();
+                chain
+                  .updateBlockType({
+                    flavour: ['bulleted', 'numbered', 'todo'].includes(nextAction)
+                      ? 'affine:list'
+                      : 'affine:paragraph',
+                    props: { type: nextAction === 'heading' ? 'h2' : nextAction },
+                  })
+                  .run();
             }
           } finally {
             refreshToolbarRef.current();
@@ -253,18 +305,30 @@ function focusInsertedContent(editor: AffineEditorContainer, insertedIds: string
 
 function updateDocumentMetadata(editor: AffineEditorContainer, author: string, updatedAt: string) {
   const viewport = editor.querySelector<HTMLElement>('.affine-page-viewport');
-  const docTitle = editor.querySelector<HTMLElement>('doc-title');
-  if (viewport) viewport.dataset.workspaceLabel = 'OVERVIEW';
-  if (docTitle)
-    docTitle.dataset.workspaceMeta = `${author || 'Unknown author'}  ·  ${formatWorkspaceDate(updatedAt)}`;
+  if (!viewport) return;
+
+  let metadata = viewport.querySelector<HTMLElement>(':scope > .workspace-document-meta');
+  if (!metadata) {
+    metadata = document.createElement('div');
+    metadata.className = 'workspace-document-meta';
+    const badge = document.createElement('span');
+    badge.className = 'workspace-document-badge';
+    badge.textContent = '公众号草稿';
+    const details = document.createElement('span');
+    details.className = 'workspace-document-details';
+    metadata.append(badge, details);
+    viewport.prepend(metadata);
+  }
+  const details = metadata.querySelector<HTMLElement>('.workspace-document-details');
+  if (details) details.textContent = `${author || '未署名'} · ${formatWorkspaceDate(updatedAt)}`;
 }
 
 function formatWorkspaceDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'long',
     day: 'numeric',
     year: 'numeric',
   }).format(date);

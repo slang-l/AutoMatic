@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { FileText, Plus, RefreshCw, Trash2, Undo2 } from 'lucide-react';
 import {
@@ -82,10 +84,16 @@ export function WorkspacePanel({
           <span className="automatic-eyebrow">我的空间 / AUTOMATIC</span>
           <h1>{viewLabels[view]}</h1>
         </div>
-        <button className="automatic-primary" type="button" onClick={create}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="automatic-primary"
+          type="button"
+          onClick={create}
+        >
           <Plus size={16} />
           新建文章
-        </button>
+        </Button>
       </header>
       {view === 'home' && (
         <>
@@ -108,7 +116,7 @@ export function WorkspacePanel({
           </div>
           <div className="automatic-section-title">
             <h2>最近编辑</h2>
-            <input
+            <Input
               type="search"
               placeholder="搜索标题或正文"
               aria-label="搜索标题或正文"
@@ -144,7 +152,7 @@ export function WorkspacePanel({
                           }
                         }}
                       >
-                        <input
+                        <Input
                           aria-label="文章名称"
                           autoFocus
                           value={title}
@@ -153,15 +161,22 @@ export function WorkspacePanel({
                             if (event.key === 'Escape') setEditingId(null);
                           }}
                         />
-                        <button type="submit">保存</button>
-                        <button type="button" onClick={() => setEditingId(null)}>
+                        <Button variant="default" size="sm" type="submit">
+                          保存
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                        >
                           取消
-                        </button>
+                        </Button>
                       </form>
                     ) : (
-                      <button type="button" onClick={() => open(doc.id)}>
+                      <Button variant="ghost" size="sm" type="button" onClick={() => open(doc.id)}>
                         {doc.title.trim() || '未命名文章'}
-                      </button>
+                      </Button>
                     )}
                     <small>{formatDateTime(doc.updatedAt)}</small>
                   </div>
@@ -179,7 +194,9 @@ export function WorkspacePanel({
                         </option>
                       ))}
                   </select>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     type="button"
                     onClick={() => {
                       setEditingId(doc.id);
@@ -187,15 +204,17 @@ export function WorkspacePanel({
                     }}
                   >
                     重命名
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     type="button"
                     aria-label={`删除${doc.title}`}
                     title="移入回收站（含子页面）"
                     onClick={() => store.deleteDoc(doc.id)}
                   >
                     <Trash2 size={16} />
-                  </button>
+                  </Button>
                 </article>
               ))}
           </div>
@@ -222,9 +241,14 @@ export function WorkspacePanel({
                 新建空白文章，或从模板中心选择结构。点击目录旁的 +
                 可以创建子页面；在首页管理文章名称和层级。
               </p>
-              <button type="button" onClick={() => onNavigate('templates')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => onNavigate('templates')}
+              >
                 选择文章模板 →
-              </button>
+              </Button>
             </article>
             <article>
               <span>02</span>
@@ -232,9 +256,9 @@ export function WorkspacePanel({
               <p>
                 在编辑器输入 / 插入内容块，使用顶部的组件与素材入口添加排版组件、图片和品牌素材。
               </p>
-              <button type="button" onClick={() => onNavigate('editor')}>
+              <Button variant="ghost" size="sm" type="button" onClick={() => onNavigate('editor')}>
                 打开编辑器 →
-              </button>
+              </Button>
             </article>
             <article>
               <span>03</span>
@@ -242,9 +266,9 @@ export function WorkspacePanel({
               <p>
                 在右侧预览公众号排版，选择主题并发布。首次发布需要配置公众号凭据和封面；提交后可在发布记录中查看结果。
               </p>
-              <button type="button" onClick={() => onNavigate('history')}>
+              <Button variant="ghost" size="sm" type="button" onClick={() => onNavigate('history')}>
                 查看发布记录 →
-              </button>
+              </Button>
             </article>
           </div>
         </>
@@ -263,7 +287,9 @@ export function WorkspacePanel({
                   ))}
                 </div>
                 <p>{template.description}</p>
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   type="button"
                   onClick={() => {
                     const id = store.createDoc();
@@ -284,7 +310,7 @@ export function WorkspacePanel({
                   }}
                 >
                   使用模板
-                </button>
+                </Button>
               </article>
             ))}
           </div>
@@ -300,9 +326,9 @@ export function WorkspacePanel({
             <div className="automatic-empty">
               <h2>还没有发布记录</h2>
               <p>在文章预览中完成首次发布后，记录会出现在这里。</p>
-              <button type="button" onClick={() => onNavigate('editor')}>
+              <Button variant="ghost" size="sm" type="button" onClick={() => onNavigate('editor')}>
                 开始创作
-              </button>
+              </Button>
             </div>
           ) : (
             store.publishRecords.map((record) => (
@@ -320,14 +346,16 @@ export function WorkspacePanel({
                     查看文章
                   </a>
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => void refresh(record)}
                 >
                   <RefreshCw size={15} />
                   {busyId === record.publishId ? '查询中' : '刷新状态'}
-                </button>
+                </Button>
               </article>
             ))
           )}
@@ -351,14 +379,21 @@ export function WorkspacePanel({
                   <h2>{doc.title || '未命名文章'}</h2>
                   <small>删除于 {formatDateTime(doc.deletedAt!)}</small>
                 </div>
-                <button type="button" onClick={() => store.restoreDoc(doc.id)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={() => store.restoreDoc(doc.id)}
+                >
                   <Undo2 size={15} />
                   恢复
-                </button>
+                </Button>
                 {confirmId === doc.id ? (
                   <>
                     <span>同时永久删除子页面？</span>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       type="button"
                       onClick={() => {
                         store.permanentlyDeleteDoc(doc.id);
@@ -366,15 +401,25 @@ export function WorkspacePanel({
                       }}
                     >
                       确认删除
-                    </button>
-                    <button type="button" onClick={() => setConfirmId(null)}>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      onClick={() => setConfirmId(null)}
+                    >
                       取消
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button type="button" onClick={() => setConfirmId(doc.id)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={() => setConfirmId(doc.id)}
+                  >
                     永久删除
-                  </button>
+                  </Button>
                 )}
               </article>
             ))
@@ -391,9 +436,9 @@ export function WorkspacePanel({
             {(new Blob([JSON.stringify(store.docs)]).size / 1024).toFixed(1)} KB。
           </p>
           <p>Pro 方案尚未开放购买，价格与扩容额度将在上线时公布。</p>
-          <button type="button" onClick={() => onNavigate('home')}>
+          <Button variant="ghost" size="sm" type="button" onClick={() => onNavigate('home')}>
             返回我的工作区
-          </button>
+          </Button>
         </div>
       )}
     </section>

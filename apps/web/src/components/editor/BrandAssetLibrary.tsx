@@ -1,3 +1,6 @@
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Check,
   ImageOff,
@@ -249,7 +252,9 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
               </p>
             </div>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             className="content-library-close"
             type="button"
             aria-label="关闭品牌素材库"
@@ -257,13 +262,13 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
             onClick={() => onOpenChange(false)}
           >
             <X size={18} />
-          </button>
+          </Button>
         </header>
 
         <div className="content-library-controls brand-asset-controls">
-          <label className="content-library-search">
+          <Label className="content-library-search">
             <Search size={16} aria-hidden="true" />
-            <input
+            <Input
               ref={searchRef}
               type="search"
               value={query}
@@ -272,15 +277,23 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
               onChange={(event) => setQuery(event.target.value)}
             />
             {query ? (
-              <button type="button" aria-label="清除搜索" onClick={() => setQuery('')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                type="button"
+                aria-label="清除搜索"
+                onClick={() => setQuery('')}
+              >
                 <X size={14} />
-              </button>
+              </Button>
             ) : null}
-          </label>
+          </Label>
 
           <div className="content-library-categories" role="tablist" aria-label="素材分类">
             {categoryOptions.map((option) => (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 key={option.id}
                 type="button"
                 role="tab"
@@ -289,11 +302,13 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
                 onClick={() => setCategory(option.id)}
               >
                 {option.label}
-              </button>
+              </Button>
             ))}
           </div>
 
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             className="brand-asset-upload-button"
             type="button"
             disabled={assets.length >= limit || saving}
@@ -301,7 +316,7 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
           >
             <Upload size={15} />
             <span>上传</span>
-          </button>
+          </Button>
           <input
             ref={fileInputRef}
             className="brand-asset-file-input"
@@ -325,9 +340,15 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
           <div className="brand-asset-error" role="alert">
             <ImageOff size={15} />
             <span>{error}</span>
-            <button type="button" aria-label="关闭错误提示" onClick={() => setError('')}>
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              aria-label="关闭错误提示"
+              onClick={() => setError('')}
+            >
               <X size={14} />
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -341,7 +362,9 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
             <div className="brand-asset-grid">
               {filteredAssets.map((asset) => (
                 <article className="brand-asset-card" key={asset.id}>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="brand-asset-preview"
                     type="button"
                     title={`插入「${asset.name}」`}
@@ -354,7 +377,7 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
                       <Plus size={15} />
                       插入文章
                     </span>
-                  </button>
+                  </Button>
                   <div className="brand-asset-card-info">
                     <div>
                       <strong title={asset.name}>{asset.name}</strong>
@@ -363,7 +386,9 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
                       </small>
                     </div>
                     <div className="brand-asset-card-actions">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         type="button"
                         title="编辑素材"
                         aria-label={`编辑 ${asset.name}`}
@@ -380,8 +405,10 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
                         }}
                       >
                         <Pencil size={14} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className={confirmDeleteId === asset.id ? 'is-confirming' : ''}
                         type="button"
                         title={confirmDeleteId === asset.id ? '再次点击确认删除' : '删除素材'}
@@ -403,7 +430,7 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
                         ) : (
                           <Trash2 size={14} />
                         )}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   {asset.tags.length > 0 ? (
@@ -424,14 +451,16 @@ export function BrandAssetLibrary({ open, onInsert, onOpenChange }: BrandAssetLi
                 {assets.length === 0 ? '上传常用图片，写作时可直接插入' : '换一个关键词或分类试试'}
               </span>
               {assets.length === 0 && !draft ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="brand-asset-empty-upload"
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload size={15} />
                   上传图片
-                </button>
+                </Button>
               ) : null}
             </div>
           )}
@@ -463,16 +492,16 @@ function AssetDraftEditor({
       {draft.dataUrl ? (
         <img className="brand-asset-editor-preview" src={draft.dataUrl} alt="" />
       ) : null}
-      <label>
+      <Label>
         <span>名称</span>
-        <input
+        <Input
           autoFocus
           maxLength={80}
           value={draft.name}
           onChange={(event) => onChange({ ...draft, name: event.target.value })}
         />
-      </label>
-      <label>
+      </Label>
+      <Label>
         <span>分类</span>
         <select
           value={draft.category}
@@ -486,10 +515,10 @@ function AssetDraftEditor({
             </option>
           ))}
         </select>
-      </label>
-      <label className="brand-asset-tags-field">
+      </Label>
+      <Label className="brand-asset-tags-field">
         <span>标签</span>
-        <input
+        <Input
           maxLength={160}
           placeholder="多个标签用逗号分隔"
           value={draft.tagsText}
@@ -501,15 +530,22 @@ function AssetDraftEditor({
             }
           }}
         />
-      </label>
+      </Label>
       <div className="brand-asset-editor-actions">
-        <button type="button" onClick={onCancel}>
+        <Button variant="ghost" size="sm" type="button" onClick={onCancel}>
           取消
-        </button>
-        <button className="is-primary" type="button" disabled={saving} onClick={onSave}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="is-primary"
+          type="button"
+          disabled={saving}
+          onClick={onSave}
+        >
           {saving ? <LoaderCircle className="animate-spin" size={14} /> : <Check size={14} />}
           保存
-        </button>
+        </Button>
       </div>
     </section>
   );

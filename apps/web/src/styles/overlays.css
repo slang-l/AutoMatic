@@ -1,0 +1,13 @@
+.ui-modal-backdrop {
+  opacity: 1;
+  transition: opacity 180ms var(--ui-ease-out);
+}
+
+.ui-modal-surface {
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: center;
+  transition:
+    transform 220ms var(--ui-ease-out),
+    opacity 180ms var(--ui-ease-out);
+}

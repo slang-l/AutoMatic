@@ -1,8 +1,8 @@
 import {
-  FileText,
   Home,
   Image,
   PanelsTopLeft,
+  PencilLine,
   Plus,
   Search,
   Send,
@@ -35,6 +35,8 @@ interface Props {
   onOpenAssets: () => void;
   onSearchOpen: () => void;
   assetsOpen: boolean;
+  userName: string;
+  userInitials: string;
 }
 export function DocumentSidebar({
   docs,
@@ -46,6 +48,8 @@ export function DocumentSidebar({
   onOpenAssets,
   onSearchOpen,
   assetsOpen,
+  userName,
+  userInitials,
 }: Props) {
   const store = useDocsStore();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -84,16 +88,16 @@ export function DocumentSidebar({
   return (
     <aside className="notion-sidebar automatic-sidebar" aria-label="工作区导航">
       <header className="automatic-brand">
-        <span className="automatic-logo">N</span>
+        <span className="automatic-logo">A</span>
         <strong>AutoMatic</strong>
-        <span className="automatic-beta">测试版</span>
+        <span className="automatic-beta">Beta</span>
       </header>
       <label className="automatic-search">
         <Search size={15} />
         <input
           ref={searchRef}
           type="search"
-          placeholder="搜索文档..."
+          placeholder="搜索文档"
           aria-label="搜索文档"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -106,10 +110,7 @@ export function DocumentSidebar({
       <nav className="automatic-nav-group" aria-label="开始">
         {nav('home', Home)}
         {nav('start', Zap)}
-      </nav>
-      <nav className="automatic-nav-group" aria-label="我的空间">
-        <h2>我的空间</h2>
-        {nav('editor', FileText)}
+        {nav('editor', PencilLine)}
         <button
           type="button"
           className={'automatic-nav ' + (assetsOpen ? 'is-active' : '')}
@@ -121,7 +122,6 @@ export function DocumentSidebar({
         </button>
         {nav('templates', PanelsTopLeft)}
         {nav('history', Send)}
-        {nav('trash', Trash2)}
       </nav>
       <section className="notion-sidebar-pages">
         <header className="notion-sidebar-pages-header">
@@ -143,6 +143,26 @@ export function DocumentSidebar({
           />
         </div>
       </section>
+      <footer className="automatic-account-footer">
+        {nav('trash', Trash2)}
+        <div className="automatic-user-row">
+          <span className="automatic-user-avatar" aria-hidden="true">
+            {userInitials}
+          </span>
+          <span className="automatic-user-name" title={userName}>
+            {userName}
+          </span>
+          <button
+            type="button"
+            className="automatic-user-settings"
+            aria-label="设置"
+            title="设置"
+            onClick={onOpenSettings}
+          >
+            <Settings size={15} strokeWidth={1.6} />
+          </button>
+        </div>
+      </footer>
       {/* <footer className="automatic-footer">
         <div className="automatic-upgrade">
           <strong>升级到专业版</strong>

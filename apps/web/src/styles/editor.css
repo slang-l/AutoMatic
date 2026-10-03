@@ -1,0 +1,266 @@
+.editor-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.editor-column > .blocksuite-editor-host {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 44px;
+  gap: 6px;
+  border-bottom: 1px solid var(--workspace-border);
+  padding: 0 12px;
+  overflow-x: auto;
+  background: var(--workspace-canvas);
+  scrollbar-width: thin;
+}
+
+.editor-toolbar-group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.editor-toolbar-group + .editor-toolbar-group {
+  border-left: 1px solid var(--workspace-border);
+  padding-left: 6px;
+}
+
+.editor-toolbar button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: var(--ui-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.editor-toolbar button:hover {
+  color: var(--ui-text);
+  background: var(--workspace-hover);
+}
+
+.editor-toolbar button[aria-pressed='true'] {
+  color: var(--affine-primary-color, var(--ui-primary));
+  background: var(--affine-hover-color, var(--workspace-hover));
+}
+
+.editor-toolbar button:focus-visible {
+  outline: 2px solid var(--ui-text-muted);
+  outline-offset: -2px;
+}
+
+.workspace-topbar .workspace-actions > button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 6px;
+}
+
+.editor-column,
+.blocksuite-editor-host {
+  height: 100%;
+  overflow: hidden;
+}
+
+.affine-editor-container {
+  display: block;
+  height: 100%;
+  container-type: inline-size;
+  --affine-font-family:
+    Inter, 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
+  --affine-background-primary-color: var(--ui-surface);
+  --affine-editor-width: min(792px, 100%);
+  --affine-editor-side-padding: 48px;
+  --affine-editor-bottom-padding: 160px;
+  --affine-font-base: 16px;
+  --affine-line-height: 1.72;
+  --affine-text-primary-color: var(--ui-text);
+  --affine-primary-color: var(--ui-primary);
+  --affine-link-color: var(--ui-primary);
+  --affine-placeholder-color: var(--ui-text-muted);
+  --affine-hover-color: var(--ui-primary-soft);
+  --affine-popover-radius: var(--ui-radius-overlay);
+  --affine-popover-shadow: var(--ui-shadow-overlay);
+}
+
+.affine-editor-container .affine-page-viewport {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--ui-surface);
+  scroll-padding-top: 28px;
+  overscroll-behavior: contain;
+}
+
+.workspace-document-meta {
+  display: flex;
+  width: var(--affine-editor-width);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 56px var(--affine-editor-side-padding) 0;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.workspace-document-badge {
+  flex: 0 0 auto;
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+  font-weight: 500;
+}
+
+.workspace-document-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.affine-editor-container editor-host {
+  height: 100%;
+}
+
+.affine-editor-container page-editor {
+  min-height: 0;
+}
+
+.affine-editor-container doc-meta-tags {
+  display: none;
+}
+
+.affine-editor-container doc-title {
+  display: block;
+  margin: 0;
+}
+
+.affine-editor-container .doc-title-container {
+  min-height: 0;
+  padding-top: 14px !important;
+  padding-bottom: 4px !important;
+  font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+  font-size: 38px !important;
+  font-weight: 700 !important;
+  line-height: 1.18 !important;
+  letter-spacing: 0;
+  color: var(--ui-text);
+}
+
+.affine-editor-container .doc-title-container-empty::before {
+  content: '无标题文档' !important;
+  color: var(--ui-text-muted) !important;
+  opacity: 1 !important;
+}
+
+.affine-editor-container .page-editor-container {
+  height: 100%;
+  overflow: visible;
+}
+
+.affine-editor-container .affine-page-root-block-container {
+  padding-top: 30px !important;
+}
+
+.affine-editor-container affine-paragraph,
+.affine-editor-container affine-list {
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+
+.affine-editor-container .affine-paragraph-rich-text-wrapper.h1 {
+  font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  line-height: 1.34 !important;
+  letter-spacing: 0;
+}
+
+.affine-editor-container .affine-paragraph-rich-text-wrapper.h2 {
+  font-size: 24px !important;
+  font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+  line-height: 1.42 !important;
+  letter-spacing: 0;
+}
+
+.affine-editor-container .affine-paragraph-rich-text-wrapper.h3 {
+  font-size: 18px !important;
+  font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+  line-height: 1.55 !important;
+}
+
+.affine-editor-container .affine-paragraph-rich-text-wrapper:is(.text, .quote),
+.affine-editor-container .affine-list-rich-text-wrapper {
+  font-family: var(--affine-font-family);
+}
+
+.affine-editor-container .affine-list-block__todo-prefix path[fill='#1E96EB'] {
+  fill: var(--ui-primary);
+}
+
+.affine-editor-container .affine-list--checked rich-text v-line {
+  color: var(--ui-text-muted);
+  text-decoration: line-through;
+}
+
+.affine-editor-container .affine-paragraph-rich-text-wrapper.quote {
+  margin: 8px 0;
+  border-left: 2px solid var(--ui-border-strong);
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 0 4px 16px;
+  color: var(--ui-text-secondary);
+  line-height: var(--affine-line-height);
+}
+
+/* The native quote marker would duplicate the border above. */
+.affine-editor-container .affine-paragraph-rich-text-wrapper.quote::after {
+  content: none;
+}
+
+.affine-editor-container affine-code .affine-block-component {
+  margin-block: 12px !important;
+}
+
+.affine-editor-container affine-code .affine-code-block-container {
+  padding-block: 24px;
+  line-height: calc(1em + 8px);
+}
+
+.affine-editor-container affine-code #line-numbers {
+  line-height: calc(1em + 8px);
+}
+
+.affine-editor-container affine-divider {
+  margin: 10px 0;
+}
+
+.affine-editor-container affine-image img {
+  border-radius: var(--ui-radius-surface);
+}
+
+.affine-editor-container affine-format-bar-widget,
+.affine-editor-container affine-slash-menu-widget {
+  --affine-popover-radius: var(--ui-radius-overlay);
+}

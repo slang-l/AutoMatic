@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "files": [
+    "dist",
+    "migrations"
+  ],
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "db:migrate": "tsx src/database/migrate.ts",

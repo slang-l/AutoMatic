@@ -1,0 +1,28 @@
+.preview-stage {
+  background-color: #ebe9e3;
+  background-image: radial-gradient(rgba(57, 54, 47, 0.13) 0.65px, transparent 0.65px);
+  background-size: 12px 12px;
+}
+
+.preview-paper {
+  min-height: calc(100% - 2px);
+  border: 1px solid rgba(41, 39, 34, 0.12);
+  border-radius: var(--ui-radius-surface);
+  box-shadow:
+    0 1px 2px rgba(35, 33, 28, 0.06),
+    0 18px 48px rgba(35, 33, 28, 0.1);
+}
+
+.preview-paper-desktop {
+  width: min(680px, 100%);
+}
+
+.preview-paper-mobile {
+  width: min(375px, 100%);
+  border-radius: var(--ui-radius-overlay);
+  box-shadow: var(--ui-shadow-card);
+}
+
+.preview-paper-content {
+  min-height: 680px;
+}

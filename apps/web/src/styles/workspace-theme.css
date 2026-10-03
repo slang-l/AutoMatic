@@ -1,0 +1,243 @@
+/* Shared visual treatment for the writing workspace. */
+.workspace-shell {
+  --workspace-sidebar-bg: #efeeea;
+  --workspace-border: #e7e6e2;
+  --workspace-hover: #e8e7e3;
+  --workspace-active: #ffffff;
+  --ui-surface-subtle: #f6f5f2;
+  --ui-border: #e7e6e2;
+  --ui-border-strong: #d7d6d1;
+  --ui-text: #252624;
+  --ui-text-secondary: #62645f;
+  --ui-text-muted: #93958f;
+  --ui-primary: #207d58;
+  --ui-primary-hover: #186746;
+  --ui-primary-soft: #e7f2ec;
+  --ui-primary-border: #c9e2d4;
+  --ui-accent: var(--ui-primary);
+  --ui-accent-hover: var(--ui-primary-hover);
+  --ui-accent-soft: var(--ui-primary-soft);
+  --ui-accent-border: var(--ui-primary-border);
+  --ui-focus-ring: rgb(32 125 88 / 24%);
+  --ui-radius-control: 6px;
+  --ui-radius-surface: 8px;
+  --ui-radius-overlay: 8px;
+  padding-top: 0;
+}
+.workspace-preview-layer {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+.workspace-topbar,
+.automatic-sidebar,
+.automatic-panel {
+  letter-spacing: 0;
+}
+.workspace-shell.workspace-dark {
+  --workspace-sidebar-bg: #202124;
+  --workspace-hover: #2a2b2f;
+  --workspace-active: #35363b;
+  --ui-primary: #64bb94;
+  --ui-primary-hover: #7bcaa7;
+  --ui-primary-soft: #243c31;
+  --ui-primary-border: #365c48;
+}
+:root:is([data-ui-accent='purple'], [data-ui-accent='green'], [data-ui-accent='graphite'])
+  .workspace-shell {
+  --ui-primary: inherit;
+  --ui-primary-hover: inherit;
+  --ui-primary-soft: inherit;
+  --ui-primary-border: inherit;
+  --ui-focus-ring: inherit;
+}
+.workspace-topbar {
+  position: relative;
+  height: 52px;
+  flex: 0 0 52px;
+  background: var(--workspace-canvas);
+  padding: 0 14px;
+}
+.workspace-breadcrumb {
+  font-family: inherit;
+  font-size: 14px;
+}
+.workspace-breadcrumb > svg {
+  flex: 0 0 auto;
+}
+.workspace-breadcrumb-wrap {
+  flex: 1;
+  gap: 7px;
+  overflow: hidden;
+}
+.workspace-actions {
+  gap: 4px;
+  padding-left: 8px;
+}
+.workspace-component-button,
+.workspace-theme-button,
+.workspace-preview-button {
+  border-color: transparent !important;
+  background: var(--workspace-canvas) !important;
+}
+.workspace-preview-button.is-active {
+  color: var(--ui-text) !important;
+  background: var(--workspace-hover) !important;
+  border-color: transparent !important;
+}
+.notion-sidebar {
+  --sidebar-bg: var(--workspace-sidebar-bg);
+  --sidebar-border: var(--workspace-border);
+  --sidebar-hover: var(--workspace-hover);
+  --sidebar-selected: var(--workspace-canvas);
+  --sidebar-text: #858a94;
+  --sidebar-text-strong: var(--ui-text);
+  --sidebar-text-muted: var(--ui-text-muted);
+  height: 100%;
+  font-size: 15px;
+}
+.notion-sidebar-workspace {
+  height: 48px;
+  flex-basis: 48px;
+  padding: 0 13px;
+}
+.notion-sidebar-workspace strong {
+  color: var(--sidebar-text-muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+.notion-sidebar-shortcuts {
+  border-bottom: 0;
+  padding: 0 3px 16px;
+}
+.notion-sidebar-shortcut,
+.notion-sidebar-search {
+  height: 38px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+.notion-sidebar-shortcut {
+  justify-content: flex-start;
+  gap: 10px;
+  color: var(--sidebar-text-muted);
+}
+.notion-sidebar-shortcut > svg {
+  flex-shrink: 0;
+  color: #c6c8ce;
+}
+.notion-sidebar-search {
+  background: var(--workspace-canvas);
+  border-color: var(--sidebar-border);
+}
+.notion-sidebar-pages-header {
+  height: 36px;
+  flex-basis: 36px;
+  padding: 0 13px 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.notion-sidebar-pages-header button {
+  opacity: 0;
+}
+.notion-sidebar-pages-header:hover button,
+.notion-sidebar-pages-header:focus-within button {
+  opacity: 1;
+}
+.sidebar-page-row {
+  height: 30px;
+  margin: 2px 6px;
+  border-radius: 5px;
+  font-size: 13px;
+}
+.sidebar-page-row.is-selected {
+  font-weight: 600;
+  box-shadow:
+    0 1px 3px rgb(20 20 24 / 12%),
+    inset 0 0 0 1px rgb(20 20 24 / 4%);
+}
+.sidebar-page-main {
+  padding-left: calc(4px + var(--page-depth) * 18px);
+  gap: 6px;
+}
+.sidebar-page-leading {
+  width: 10px;
+  flex-basis: 10px;
+  color: #c6c8ce;
+}
+.sidebar-page-dot {
+  width: 10px;
+  text-align: center;
+}
+.sidebar-page-content {
+  max-width: calc(100% - 16px);
+}
+.sidebar-page-content.has-badge .sidebar-page-title {
+  max-width: none;
+}
+.sidebar-page-add {
+  opacity: 0;
+}
+.sidebar-page-row:focus-within .sidebar-page-add {
+  opacity: 1;
+}
+.sidebar-page-add:hover {
+  background: var(--sidebar-hover) !important;
+}
+.sidebar-page-badge.is-active,
+.sidebar-page-badge.is-review {
+  color: var(--sidebar-text);
+  background: var(--sidebar-hover);
+}
+.notion-sidebar-footer {
+  border-top: 0;
+}
+.notion-sidebar-footer button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+}
+.notion-sidebar button:focus-visible,
+.notion-sidebar-search:focus-within {
+  outline: 2px solid var(--ui-text-muted);
+  outline-offset: -2px;
+}
+.workspace-dark .notion-sidebar {
+  --sidebar-text: #a8abb3;
+}
+.workspace-account-menu {
+  border-radius: 8px;
+}
+.workspace-help-button {
+  width: 28px;
+  height: 28px;
+  right: 14px;
+  bottom: 14px;
+  font-size: 14px;
+  box-shadow: none;
+  opacity: 0.65;
+}
+.workspace-help-button:hover {
+  opacity: 1;
+}
+.workspace-resize-handle {
+  background: var(--workspace-sidebar-bg);
+}
+.workspace-sidebar-resizer {
+  margin-left: -4px;
+  margin-right: -4px;
+  z-index: 25;
+}
+.workspace-preview-resizer {
+  margin-left: -4px;
+  margin-right: -4px;
+}
+.workspace-resize-handle::before {
+  background: transparent;
+}
+.workspace-preview-pane {
+  border-left: 1px solid var(--workspace-border);
+}

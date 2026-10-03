@@ -1,3 +1,6 @@
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
@@ -299,7 +302,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                 ) : null}
               </div>
 
-              <button
+              <Button
+                variant="default"
+                size="sm"
                 className="ui-pressable mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[var(--ui-primary)] px-4 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(83,103,216,0.2)] hover:bg-[var(--ui-primary-hover)] hover:shadow-[0_9px_22px_rgba(83,103,216,0.22)] disabled:cursor-wait disabled:opacity-70"
                 type="submit"
                 disabled={isSubmitting || isRequestingCode}
@@ -314,19 +319,21 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                       : '创建账号'}
                 </span>
                 <ArrowRight size={16} strokeWidth={1.9} />
-              </button>
+              </Button>
             </form>
 
             <p className="mb-0 mt-6 text-center text-xs leading-5 text-[var(--ui-text-muted)]">
               {isLogin ? '还没有账号？' : '已有账号？'}
-              <button
-                className="ui-pressable ml-1 border-0 bg-transparent p-0 font-medium text-[var(--ui-primary)] hover:text-[var(--ui-primary-hover)] hover:underline"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ui-pressable ml-1 h-auto border-0 bg-transparent p-0 font-medium text-[var(--ui-primary)] hover:text-[var(--ui-primary-hover)] hover:underline"
                 type="button"
                 disabled={isSubmitting || isRequestingCode}
                 onClick={() => switchMode(isLogin ? 'register' : 'login')}
               >
                 {isLogin ? '免费注册' : '立即登录'}
-              </button>
+              </Button>
             </p>
           </section>
         </div>
@@ -468,7 +475,9 @@ function ModeButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="sm"
       className={`ui-pressable h-9 rounded-[7px] text-sm font-medium ${
         active
           ? 'bg-white text-[var(--ui-text)] shadow-[var(--ui-shadow-xs)]'
@@ -480,7 +489,7 @@ function ModeButton({
       onClick={onClick}
     >
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -579,13 +588,13 @@ function FormField({
   value,
 }: FormFieldProps) {
   return (
-    <label className="block" htmlFor={id}>
+    <Label className="block" htmlFor={id}>
       <span className="mb-2 block text-xs font-medium text-[var(--ui-text-secondary)]">
         {label}
       </span>
       <span className="flex h-11 items-center gap-2.5 rounded-[10px] border border-[var(--ui-border-strong)] bg-[var(--ui-surface)] px-3 text-[var(--ui-text-muted)] transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--ui-primary)] focus-within:shadow-[0_0_0_3px_var(--ui-primary-soft)]">
         {icon}
-        <input
+        <Input
           className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-[var(--ui-text)] outline-none placeholder:text-[#a1a9b5] focus:outline-none"
           id={id}
           maxLength={maxLength}
@@ -596,7 +605,7 @@ function FormField({
           onChange={(event) => onChange(event.target.value)}
         />
       </span>
-    </label>
+    </Label>
   );
 }
 
@@ -622,13 +631,13 @@ function VerificationCodeField({
   const requestDisabled = isRequesting || resendSeconds > 0;
 
   return (
-    <label className="block" htmlFor={id}>
+    <Label className="block" htmlFor={id}>
       <span className="mb-2 block text-xs font-medium text-[var(--ui-text-secondary)]">
         邮箱验证码
       </span>
       <span className="flex h-11 items-center gap-2.5 rounded-[10px] border border-[var(--ui-border-strong)] bg-[var(--ui-surface)] pl-3 pr-1.5 text-[var(--ui-text-muted)] transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--ui-primary)] focus-within:shadow-[0_0_0_3px_var(--ui-primary-soft)]">
         <ShieldCheck size={16} />
-        <input
+        <Input
           className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm tracking-[0.18em] text-[var(--ui-text)] outline-none placeholder:tracking-normal placeholder:text-[#a1a9b5] focus:outline-none"
           id={id}
           type="text"
@@ -640,21 +649,23 @@ function VerificationCodeField({
           placeholder="输入 6 位验证码"
           onChange={(event) => onChange(event.target.value)}
         />
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           className="ui-pressable h-8 shrink-0 rounded-[7px] border-0 bg-[var(--ui-primary-soft)] px-2.5 text-[11px] font-medium text-[var(--ui-primary)] hover:bg-[var(--ui-primary-border)] disabled:cursor-not-allowed disabled:opacity-60"
           type="button"
           disabled={requestDisabled}
           onClick={onRequest}
         >
           {isRequesting ? '生成中…' : resendSeconds > 0 ? `${resendSeconds}s 后重试` : '获取验证码'}
-        </button>
+        </Button>
       </span>
       {testCode ? (
         <span className="mt-2 block rounded-[8px] bg-[var(--ui-status-success-soft)] px-2.5 py-2 text-[11px] text-[var(--ui-status-success)]">
           开发测试验证码：<strong className="font-semibold tracking-[0.12em]">{testCode}</strong>
         </span>
       ) : null}
-    </label>
+    </Label>
   );
 }
 
@@ -680,13 +691,13 @@ function PasswordField({
   value,
 }: PasswordFieldProps) {
   return (
-    <label className="block" htmlFor={id}>
+    <Label className="block" htmlFor={id}>
       <span className="mb-2 block text-xs font-medium text-[var(--ui-text-secondary)]">
         {label}
       </span>
       <span className="flex h-11 items-center gap-2.5 rounded-[10px] border border-[var(--ui-border-strong)] bg-[var(--ui-surface)] px-3 text-[var(--ui-text-muted)] transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--ui-primary)] focus-within:shadow-[0_0_0_3px_var(--ui-primary-soft)]">
         <LockKeyhole size={16} />
-        <input
+        <Input
           className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-[var(--ui-text)] outline-none placeholder:text-[#a1a9b5] focus:outline-none"
           id={id}
           type={showPassword ? 'text' : 'password'}
@@ -695,15 +706,17 @@ function PasswordField({
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
         />
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           className="ui-pressable ui-icon-button -mr-1 h-8 w-8 shrink-0 border-0 bg-transparent text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-subtle)] hover:text-[var(--ui-text)]"
           type="button"
           aria-label={showPassword ? '隐藏密码' : '显示密码'}
           onClick={onToggleVisibility}
         >
           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
+        </Button>
       </span>
-    </label>
+    </Label>
   );
 }

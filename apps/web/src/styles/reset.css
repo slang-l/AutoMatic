@@ -1,0 +1,185 @@
+/*
+ * 企业级全局样式重置（Reset）。
+ *
+ * 目标：消除主流浏览器的默认样式差异，提供一致、可访问的样式基线。
+ * 所有选择器尽量使用 :where() 将特异性降为 0，业务组件无需提高选择器
+ * 权重或使用 !important 即可覆盖这些默认规则。
+ */
+
+/* 让元素声明的宽高包含 border 和 padding，伪元素也遵循同一盒模型。 */
+:where(*, *::before, *::after) {
+  box-sizing: border-box;
+}
+
+/*
+ * 统一根元素的基础排版：
+ * - 提供舒适的默认行高；
+ * - 统一 Tab 的显示宽度；
+ * - 阻止移动端浏览器在横竖屏切换时擅自放大文字。
+ */
+:where(html) {
+  line-height: 1.5;
+  tab-size: 4;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 移除浏览器默认的 body 外边距，避免页面四周出现非预期留白。 */
+:where(body) {
+  margin: 0;
+}
+
+/* 表单控件默认继承应用字体，避免回退到浏览器或系统控件字体。 */
+:where(body, button, input, select, textarea) {
+  font-family: inherit;
+}
+
+/* 清除常见文本和内容容器的默认外边距，由组件自行管理垂直节奏。 */
+:where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd) {
+  margin: 0;
+}
+
+/* 清除列表默认间距；仅对显式声明为纯展示列表的元素移除项目符号。 */
+:where(ul, ol) {
+  margin: 0;
+  padding: 0;
+}
+
+:where(ul, ol)[role='list'] {
+  list-style: none;
+}
+
+/* 链接默认继承上下文的颜色与装饰，交互外观由具体组件定义。 */
+:where(a) {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+/*
+ * 媒体元素改为块级，消除行内元素基线下方的空隙，并防止溢出容器。
+ * 保持位图和视频的原始宽高比，避免响应式缩放时发生拉伸。
+ */
+:where(img, picture, video, canvas, svg) {
+  display: block;
+  max-width: 100%;
+}
+
+:where(img, picture, video, canvas) {
+  height: auto;
+}
+
+/* 统一嵌入式内容与文字基线的对齐方式。 */
+:where(img, svg, video, canvas, audio, iframe, embed, object) {
+  vertical-align: middle;
+}
+
+/* 消除表单控件的浏览器默认差异，并继承页面排版属性。 */
+:where(button, input, optgroup, select, textarea) {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+/* 避免部分浏览器自动转换按钮和下拉框文字的大小写。 */
+:where(button, select) {
+  text-transform: none;
+}
+
+/* 保留可点击按钮的原生交互语义，并兼容 WebKit 浏览器。 */
+:where(button, [type='button'], [type='reset'], [type='submit']) {
+  appearance: button;
+  -webkit-appearance: button;
+}
+
+/* 可用按钮显示点击指针；原生或 ARIA 禁用控件显示禁用指针。 */
+:where(button, [type='button'], [type='reset'], [type='submit']):not(:disabled) {
+  cursor: pointer;
+}
+
+:where(button, input, select, textarea):disabled,
+:where([aria-disabled='true']) {
+  cursor: not-allowed;
+}
+
+/* 文本域只允许纵向调整，避免横向拖拽破坏页面布局。 */
+:where(textarea) {
+  overflow: auto;
+  resize: vertical;
+}
+
+/* 统一占位文字颜色来源，并通过透明度与实际输入内容建立层级。 */
+:where(input::placeholder, textarea::placeholder) {
+  color: inherit;
+  opacity: 0.54;
+}
+
+/* 清除 fieldset/legend 的原生边框和间距，允许其在弹性布局中正确收缩。 */
+:where(fieldset) {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+:where(legend) {
+  padding: 0;
+}
+
+/* 统一表格边框模型，避免单元格间产生双边框或默认缩进。 */
+:where(table) {
+  border-color: inherit;
+  border-collapse: collapse;
+  text-indent: 0;
+}
+
+/* details 的摘要保持列表项语义，并提示用户该区域可以点击。 */
+:where(summary) {
+  cursor: pointer;
+  display: list-item;
+}
+
+/* 修正进度条与相邻文本在不同浏览器中的基线位置。 */
+:where(progress) {
+  vertical-align: baseline;
+}
+
+/* 清除 dialog 的原生边框和内边距，同时保留默认居中行为。 */
+:where(dialog) {
+  margin: auto;
+  border: 0;
+  padding: 0;
+}
+
+/* hidden 属性必须始终隐藏元素，避免被普通 display 声明意外覆盖。 */
+:where([hidden]) {
+  display: none !important;
+}
+
+/* 为异步加载区域提供明确的等待状态反馈。 */
+:where([aria-busy='true']) {
+  cursor: progress;
+}
+
+/*
+ * 仅在键盘等需要焦点提示的交互方式下显示焦点环。
+ * 不直接移除 outline，确保键盘用户能够识别当前焦点。
+ */
+:where(:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* 尊重操作系统的“减少动态效果”偏好，降低动画引起的不适。 */
+@media (prefers-reduced-motion: reduce) {
+  :where(html:focus-within) {
+    scroll-behavior: auto;
+  }
+
+  :where(*, *::before, *::after) {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

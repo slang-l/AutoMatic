@@ -3,7 +3,11 @@ import { useDocsStore } from '../../store/docsStore';
 import type { AppDoc, NormalizedBlock } from '../../types/document';
 import { Toast, type ToastState } from '../common/Toast';
 import type { BrandAsset } from '../../services/brand-assets-api';
-import { BlockSuiteEditor, type BlockSuiteEditorHandle, type EditorToolbarState } from './BlockSuiteEditor';
+import {
+  BlockSuiteEditor,
+  type BlockSuiteEditorHandle,
+  type EditorToolbarState,
+} from './BlockSuiteEditor';
 import { BrandAssetLibrary } from './BrandAssetLibrary';
 import { EditorToolbar } from './EditorToolbar';
 import { ContentComponentLibrary } from './ContentComponentLibrary';

@@ -1,3 +1,6 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import {
   Check,
   Database,
@@ -11,7 +14,6 @@ import {
   X,
 } from 'lucide-react';
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   clearAppliedSettingsPreferences,
   downloadSettingsJson,
@@ -45,22 +47,6 @@ const scaleOptions: Array<{ value: SettingsScale; label: string; description: st
   { value: 'default', label: '默认', description: '平衡的信息密度' },
   { value: 'large', label: '宽松', description: '更大的文字与控件' },
 ];
-
-const focusableSelector = [
-  'button:not([disabled])',
-  '[href]',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  // querySelector 会返回响应式布局中 display:none 的按钮，需要排除后再做焦点环。
-  return Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter(
-    (element) => element.getClientRects().length > 0,
-  );
-}
 
 function formatBytes(value?: number): string {
   if (value === undefined || !Number.isFinite(value)) return '未知';
@@ -118,24 +104,7 @@ function Toggle({
   onChange: (checked: boolean) => void;
   label: string;
 }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      className={`ui-pressable relative h-6 w-10 rounded-full ${
-        checked ? 'bg-[var(--ui-primary)]' : 'bg-[var(--ui-border-strong)]'
-      }`}
-      onClick={() => onChange(!checked)}
-    >
-      <span
-        className={`absolute left-0 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
+  return <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />;
 }
 
 export function SettingsModal({
@@ -153,12 +122,8 @@ export function SettingsModal({
   const [confirmReset, setConfirmReset] = useState(false);
   const [signOutPending, setSignOutPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
-  const closeRef = useRef(onOpenChange);
   const { preferences, setPreferences, reset } = useSettingsPreferences(user.id);
-
-  closeRef.current = onOpenChange;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -167,63 +132,6 @@ export function SettingsModal({
       clearAppliedSettingsPreferences();
     };
   }, [user.id]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    const appRoot = document.getElementById('root');
-    const appRootHadInert = appRoot?.hasAttribute('inert') ?? false;
-    const previousAriaHidden = appRoot?.getAttribute('aria-hidden') ?? null;
-    document.body.style.overflow = 'hidden';
-
-    // 先把焦点移入 Portal，再隔离背景，避免 aria-hidden 包含当前焦点。
-    const dialog = dialogRef.current;
-    if (dialog) (getFocusableElements(dialog)[0] ?? dialog).focus();
-    appRoot?.setAttribute('inert', '');
-    appRoot?.setAttribute('aria-hidden', 'true');
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeRef.current(false);
-        return;
-      }
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-
-      // 基本焦点环：Tab 不会越过弹窗进入被遮罩的应用区域。
-      const items = getFocusableElements(dialogRef.current);
-      if (items.length === 0) {
-        event.preventDefault();
-        dialogRef.current.focus();
-        return;
-      }
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    // 使用捕获阶段，确保弹窗内部为了隔离编辑器快捷键而 stopPropagation 时 Escape 仍有效。
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown, true);
-      document.body.style.overflow = previousOverflow;
-      if (appRoot) {
-        if (!appRootHadInert) appRoot.removeAttribute('inert');
-        if (previousAriaHidden === null) appRoot.removeAttribute('aria-hidden');
-        else appRoot.setAttribute('aria-hidden', previousAriaHidden);
-      }
-      previouslyFocused?.focus();
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open || section !== 'data') return;
@@ -284,38 +192,33 @@ export function SettingsModal({
 
   if (!open || typeof document === 'undefined') return null;
 
-  return createPortal(
-    <div
-      className="ui-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-[var(--ui-overlay)] p-0 backdrop-blur-[2px] md:p-5"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onOpenChange(false);
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
         aria-labelledby="settings-title"
-        tabIndex={-1}
+        showCloseButton={false}
         onKeyDown={handleDialogKeyDown}
-        className="ui-modal-surface flex h-[100dvh] w-full max-w-[940px] flex-col overflow-hidden border-0 bg-[var(--ui-surface)] shadow-[var(--ui-shadow-overlay)] md:h-[min(82vh,680px)] md:flex-row md:rounded-[var(--ui-radius-overlay)] md:border md:border-[var(--ui-border)]"
+        className="flex h-[100dvh] w-full max-w-[940px] flex-col gap-0 overflow-hidden rounded-none border-0 bg-[var(--ui-surface)] p-0 shadow-[var(--ui-shadow-overlay)] md:h-[min(82vh,680px)] md:flex-row md:rounded-[var(--ui-radius-overlay)] md:border md:border-border"
       >
+        <DialogDescription className="sr-only">管理账号、外观和数据隐私偏好</DialogDescription>
         <aside className="shrink-0 border-b border-[var(--ui-border)] bg-[var(--ui-surface-subtle)] px-3 pb-2 pt-4 md:w-[220px] md:border-b-0 md:border-r md:px-3 md:py-5">
           <div className="mb-3 flex items-center justify-between px-2">
-            <h2
+            <DialogTitle
               id="settings-title"
               className="text-base font-semibold tracking-tight text-[var(--ui-text)]"
             >
               设置
-            </h2>
-            <button
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
               type="button"
               className="ui-pressable ui-icon-button h-8 w-8 text-[var(--ui-text-muted)] hover:bg-[var(--ui-border)] hover:text-[var(--ui-text)] md:hidden"
               onClick={() => onOpenChange(false)}
               aria-label="关闭设置"
             >
               <X size={17} />
-            </button>
+            </Button>
           </div>
           <nav
             className="flex gap-1 overflow-x-auto pb-1 md:block md:space-y-0.5 md:overflow-visible"
@@ -325,7 +228,9 @@ export function SettingsModal({
               const Icon = item.icon;
               const selected = section === item.id;
               return (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   key={item.id}
                   type="button"
                   aria-current={selected ? 'page' : undefined}
@@ -342,7 +247,7 @@ export function SettingsModal({
                 >
                   <Icon size={16} aria-hidden="true" />
                   {item.label}
-                </button>
+                </Button>
               );
             })}
           </nav>
@@ -352,14 +257,16 @@ export function SettingsModal({
         </aside>
 
         <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             type="button"
             className="ui-pressable ui-icon-button absolute right-5 top-5 z-10 hidden h-8 w-8 text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-subtle)] hover:text-[var(--ui-text)] md:grid"
             onClick={() => onOpenChange(false)}
             aria-label="关闭设置"
           >
             <X size={18} />
-          </button>
+          </Button>
 
           <div className="mx-auto w-full max-w-[660px] px-5 pb-12 pt-7 sm:px-10 sm:pt-10">
             {section === 'account' ? (
@@ -402,7 +309,9 @@ export function SettingsModal({
 
                 {onSignOut ? (
                   <div className="mt-8 border-t border-[var(--ui-border)] pt-5">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       type="button"
                       disabled={signOutPending}
                       onClick={() => void handleSignOut()}
@@ -410,7 +319,7 @@ export function SettingsModal({
                     >
                       <LogOut size={16} />
                       {signOutPending ? '正在退出…' : '退出登录'}
-                    </button>
+                    </Button>
                     {message ? (
                       <p role="alert" className="mt-2 text-xs text-[var(--ui-status-danger)]">
                         {message}
@@ -439,7 +348,9 @@ export function SettingsModal({
                     {accentOptions.map((option) => {
                       const selected = preferences.appearance.accent === option.value;
                       return (
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           type="button"
                           key={option.value}
                           aria-pressed={selected}
@@ -458,7 +369,7 @@ export function SettingsModal({
                           {selected ? (
                             <Check className="ml-auto text-[var(--ui-primary)]" size={14} />
                           ) : null}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -470,12 +381,14 @@ export function SettingsModal({
                     {scaleOptions.map((option) => {
                       const selected = preferences.appearance.scale === option.value;
                       return (
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           type="button"
                           key={option.value}
                           aria-pressed={selected}
                           onClick={() => updateAppearance({ scale: option.value })}
-                          className={`ui-pressable rounded-[var(--ui-radius-surface)] border p-3 text-left ${
+                          className={`ui-pressable block h-auto whitespace-normal rounded-[var(--ui-radius-surface)] border p-3 text-left ${
                             selected
                               ? 'border-[var(--ui-primary)] bg-[var(--ui-primary-soft)]'
                               : 'border-[var(--ui-border)] hover:bg-[var(--ui-surface-subtle)]'
@@ -487,7 +400,7 @@ export function SettingsModal({
                           <span className="mt-1 block text-[11px] leading-4 text-[var(--ui-text-muted)]">
                             {option.description}
                           </span>
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -556,13 +469,15 @@ export function SettingsModal({
                   title="导出设置"
                   description="下载一个可读的 JSON 文件，不会上传任何内容。"
                 >
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     type="button"
                     onClick={() => downloadSettingsJson(user, preferences)}
                     className="ui-pressable inline-flex h-9 items-center gap-2 rounded-[var(--ui-radius-control)] border border-[var(--ui-border)] px-3 text-sm font-medium text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-subtle)] hover:text-[var(--ui-text)]"
                   >
                     <Download size={15} /> 导出 JSON
-                  </button>
+                  </Button>
                 </SettingRow>
 
                 <SettingRow
@@ -571,14 +486,18 @@ export function SettingsModal({
                 >
                   {confirmReset ? (
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         type="button"
                         className="ui-pressable h-9 rounded-[var(--ui-radius-control)] px-3 text-sm text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-subtle)]"
                         onClick={() => setConfirmReset(false)}
                       >
                         取消
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         type="button"
                         className="ui-pressable h-9 rounded-[var(--ui-radius-control)] bg-[var(--ui-status-danger)] px-3 text-sm font-medium text-white"
                         onClick={() => {
@@ -588,16 +507,18 @@ export function SettingsModal({
                         }}
                       >
                         确认重置
-                      </button>
+                      </Button>
                     </div>
                   ) : (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       type="button"
                       onClick={() => setConfirmReset(true)}
                       className="ui-pressable inline-flex h-9 items-center gap-2 rounded-[var(--ui-radius-control)] border border-[var(--ui-border)] px-3 text-sm font-medium text-[var(--ui-status-danger)] hover:border-[var(--ui-status-danger)] hover:bg-[var(--ui-status-danger-soft)]"
                     >
                       <RotateCcw size={15} /> 重置
-                    </button>
+                    </Button>
                   )}
                 </SettingRow>
                 {message ? (
@@ -641,8 +562,7 @@ export function SettingsModal({
             ) : null}
           </div>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   );
 }

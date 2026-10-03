@@ -2,6 +2,10 @@
 
 协同底层接口与同步协议见 [docs/collaboration.md](docs/collaboration.md)。
 
+云服务器部署、HTTPS、版本更新和备份流程见 [docs/deployment.md](docs/deployment.md)。
+
+GitHub Actions 自动检查、发布、回滚与完整学习步骤见 [docs/ci-cd.md](docs/ci-cd.md)。
+
 AutoMatic 是一个面向微信公众号内容创作的前后端 monorepo，提供 BlockSuite 编辑、公众号样式预览，以及带邮箱验证码的账号注册、登录和会话续期。
 
 ## 技术架构

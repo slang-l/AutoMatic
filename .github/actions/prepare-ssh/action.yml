@@ -1,0 +1,43 @@
+name: Prepare deployment SSH
+description: Load the deployment key and pinned server host key
+inputs:
+  private-key:
+    required: true
+    description: OpenSSH private key
+  known-hosts:
+    required: true
+    description: Verified OpenSSH known_hosts contents
+  host:
+    required: true
+    description: Server IPv4 address
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        DEPLOY_KEY: ${{ inputs.private-key }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+        DEPLOY_HOST: ${{ inputs.host }}
+      run: |
+        set -euo pipefail
+        [[ "$DEPLOY_HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        test -n "$DEPLOY_KEY"
+        test -n "$KNOWN_HOSTS"
+        install -d -m 700 ~/.ssh
+        umask 077
+        printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/automatic_deploy
+        printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+        ssh-keygen -y -f ~/.ssh/automatic_deploy >/dev/null
+        ssh-keygen -F "$DEPLOY_HOST" -f ~/.ssh/known_hosts >/dev/null
+        cat > ~/.ssh/config <<EOF
+        Host automatic-production
+          HostName $DEPLOY_HOST
+          User automatic-deploy
+          IdentityFile ~/.ssh/automatic_deploy
+          IdentitiesOnly yes
+          BatchMode yes
+          StrictHostKeyChecking yes
+          ConnectTimeout 15
+          ServerAliveInterval 15
+          ServerAliveCountMax 3
+        EOF

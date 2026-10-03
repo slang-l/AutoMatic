@@ -1,0 +1,15 @@
+diff --git a/packages/blocks/src/root-block/widgets/inner-modal/inner-modal.ts b/packages/blocks/src/root-block/widgets/inner-modal/inner-modal.ts
+index c6fcff9f0..ea16e18c4 100644
+--- a/packages/blocks/src/root-block/widgets/inner-modal/inner-modal.ts
++++ b/packages/blocks/src/root-block/widgets/inner-modal/inner-modal.ts
+@@ -13,7 +13,9 @@ export const AFFINE_INNER_MODAL_WIDGET = 'affine-inner-modal-widget';
+ 
+ @customElement(AFFINE_INNER_MODAL_WIDGET)
+ export class AffineInnerModalWidget extends WidgetElement {
+-  private _getTarget?: () => ReferenceElement;
++  // Keep this type-only: emitting a field here makes the decorator transform
++  // initialize `this` before WidgetElement's constructor in Vite development.
++  declare private _getTarget?: () => ReferenceElement;
+ 
+   setTarget(fn: () => ReferenceElement) {
+     this._getTarget = fn;

@@ -1,54 +1,59 @@
 .automatic-sidebar {
-  --sidebar-bg: #f7f7f5;
-  --sidebar-selected: #e9e9e7;
-  --sidebar-text: #808080;
-  --sidebar-text-strong: #191919;
+  --sidebar-bg: var(--workspace-sidebar-bg);
+  --sidebar-selected: var(--workspace-canvas);
+  --sidebar-text: #74766f;
+  --sidebar-text-strong: var(--ui-text);
   background: var(--sidebar-bg);
-  padding: 10px 5px 0;
+  padding: 0 8px;
 }
 .automatic-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 5px;
+  height: 52px;
+  padding: 0 8px;
   flex-shrink: 0;
   color: var(--sidebar-text-strong);
 }
 .automatic-brand strong {
-  font-size: 19px;
+  font-size: 14px;
   font-weight: 650;
-  letter-spacing: -0.5px;
+  letter-spacing: 0;
 }
 .automatic-logo {
   display: grid;
   place-items: center;
-  width: 35px;
-  height: 35px;
-  border-radius: 8px;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  border-radius: 5px;
   background: #191919;
   color: white;
-  font-size: 20px;
+  font-family: Georgia, serif;
+  font-size: 17px;
   font-weight: 700;
 }
 .automatic-beta {
   margin-left: auto;
-  background: #dededb;
+  border: 1px solid var(--sidebar-border);
+  background: transparent;
   border-radius: 4px;
   padding: 2px 6px;
-  font-size: 12px;
-  color: #777;
+  font-size: 10px;
+  color: var(--ui-text-muted);
 }
 .automatic-search {
   display: flex;
   flex-shrink: 0;
   gap: 7px;
   align-items: center;
-  margin: 0 5px 10px;
-  padding: 0 12px;
-  height: 40px;
-  border-radius: 9px;
+  margin: 0 3px 8px;
+  padding: 0 9px;
+  height: 34px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 6px;
   background: var(--sidebar-selected);
-  color: #a0a0a0;
+  color: var(--ui-text-muted);
 }
 .automatic-search input {
   min-width: 0;
@@ -57,20 +62,20 @@
   outline: 0;
   background: transparent;
   color: var(--sidebar-text-strong);
-  font-size: 14px;
+  font-size: 13px;
 }
 .automatic-search input::placeholder {
-  color: #aaa;
+  color: var(--ui-text-muted);
 }
 .automatic-search kbd {
   font: inherit;
-  font-size: 11px;
+  flex: 0 0 auto;
+  font-size: 10px;
   white-space: nowrap;
 }
 .automatic-nav-group {
-  padding: 3px 0 8px;
-  margin: 0 0 5px;
-  border-bottom: 1px solid var(--sidebar-border);
+  padding: 0;
+  margin: 0 0 17px;
 }
 .automatic-nav-group h2 {
   margin: 5px 12px;
@@ -81,27 +86,37 @@
 .automatic-sidebar .automatic-nav {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 6px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
   text-align: left;
-  font-size: 16px;
+  font-size: 13px;
 }
 .automatic-sidebar .automatic-nav:hover {
   background: var(--sidebar-hover);
 }
 .automatic-sidebar .automatic-nav.is-active {
   background: var(--sidebar-selected);
+  border-color: var(--sidebar-border);
   color: var(--sidebar-text-strong);
-  font-weight: 600;
+  font-weight: 500;
+}
+.automatic-sidebar .automatic-nav > svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+.automatic-sidebar .automatic-nav.is-active > svg {
+  color: var(--ui-primary);
 }
 .automatic-sidebar .notion-sidebar-pages {
   min-height: 95px;
 }
 .automatic-sidebar .notion-sidebar-pages-header {
-  padding: 0 12px;
+  padding: 0 8px;
   height: 32px;
   flex-basis: 32px;
 }
@@ -111,35 +126,85 @@
 .automatic-sidebar .sidebar-page-row {
   margin: 0;
   width: 100%;
-  height: 35px;
+  height: 29px;
   border-radius: 5px;
-  font-size: 15px;
+  font-size: 13px;
 }
 .automatic-sidebar .sidebar-page-row.is-selected {
-  box-shadow: none;
-  font-weight: 400;
+  box-shadow: inset 0 0 0 1px var(--sidebar-border);
+  font-weight: 500;
+}
+.automatic-sidebar .sidebar-page-row.is-selected .sidebar-page-main > svg {
+  color: var(--ui-primary);
 }
 .automatic-sidebar .sidebar-page-leading {
   display: none;
 }
 .automatic-sidebar .sidebar-page-main {
-  padding-left: calc(30px + var(--page-depth) * 18px);
+  padding-left: calc(25px + var(--page-depth) * 16px);
   gap: 8px;
 }
 .automatic-sidebar .sidebar-page-main > svg {
   flex-shrink: 0;
 }
 .automatic-sidebar .sidebar-page-row:has(.automatic-tree-toggle) {
-  color: var(--sidebar-text-strong) !important;
+  color: var(--sidebar-text) !important;
 }
 .automatic-tree-toggle {
   position: absolute;
-  left: calc(9px + var(--page-depth) * 18px);
-  width: 20px;
+  left: calc(2px + var(--page-depth) * 16px);
+  width: 19px;
   height: 28px;
   display: grid;
   place-items: center;
   z-index: 1;
+}
+.automatic-account-footer {
+  display: grid;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin: 0 -8px;
+  border-top: 1px solid var(--sidebar-border);
+  padding: 9px 8px 12px;
+}
+.automatic-user-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+.automatic-user-avatar {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+  font-size: 10px;
+  font-weight: 600;
+}
+.automatic-user-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.automatic-sidebar .automatic-user-settings {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border-radius: 4px;
+}
+.automatic-user-settings:hover {
+  background: var(--sidebar-hover);
 }
 .automatic-footer {
   flex-shrink: 0;
@@ -181,7 +246,7 @@
 }
 .workspace-dark .automatic-sidebar {
   --sidebar-bg: #202124;
-  --sidebar-selected: #353638;
+  --sidebar-selected: #30312f;
   --sidebar-text: #aaa;
   --sidebar-text-strong: #eee;
 }
@@ -210,7 +275,7 @@
 }
 .automatic-eyebrow {
   font-size: 11px;
-  letter-spacing: 1.5px;
+  letter-spacing: 0;
   color: var(--ui-text-muted);
 }
 .automatic-description {
@@ -253,7 +318,7 @@
 }
 .automatic-stats > div {
   padding: 22px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--workspace-sidebar-bg);
   display: flex;
   flex-direction: column;
@@ -329,7 +394,7 @@
 .automatic-template,
 .automatic-plan {
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 24px;
 }
 .automatic-guide article > span {

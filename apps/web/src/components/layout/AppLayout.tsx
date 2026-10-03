@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import {
   useCallback,
   useEffect,
@@ -7,6 +8,7 @@ import {
   type PointerEvent,
 } from 'react';
 import {
+  ChevronRight,
   Images,
   LibraryBig,
   LogOut,
@@ -44,8 +46,8 @@ const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 420;
 const MIN_PREVIEW_WIDTH = 320;
 const MAX_PREVIEW_WIDTH = 760;
-const DEFAULT_SIDEBAR_WIDTH = 275;
-const DEFAULT_PREVIEW_WIDTH = 480;
+const DEFAULT_SIDEBAR_WIDTH = 240;
+const DEFAULT_PREVIEW_WIDTH = 388;
 
 interface AppLayoutProps {
   isSigningOut: boolean;
@@ -263,7 +265,9 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
         ref={shellRef}
         className={`workspace-shell ${darkMode ? 'workspace-dark' : ''} ${activeResize ? 'is-resizing' : ''}`}
       >
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           className={`workspace-sidebar-backdrop ${sidebarOpen ? 'is-visible' : ''}`}
           type="button"
           aria-label="关闭侧边栏"
@@ -293,6 +297,8 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
             docs={docs}
             onDocumentOpen={openEditor}
             onOpenSettings={() => setSettingsOpen(true)}
+            userName={user.name}
+            userInitials={userInitials}
           />
         </div>
 
@@ -315,7 +321,9 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
         <section className="workspace-main">
           <header className="workspace-topbar">
             <div className="workspace-breadcrumb-wrap">
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 className="workspace-icon-button"
                 type="button"
                 aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
@@ -323,16 +331,18 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 onClick={() => setSidebarOpen((open) => !open)}
               >
                 <Menu size={18} strokeWidth={1.7} />
-              </button>
+              </Button>
               <nav className="workspace-breadcrumb" aria-label="面包屑导航">
                 <span>工作区</span>
-                <span aria-hidden="true">/</span>
+                <ChevronRight size={14} aria-hidden="true" />
                 <strong title={displayTitle}>{displayTitle}</strong>
               </nav>
             </div>
-  
+
             <div className="workspace-actions">
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 className="workspace-component-button"
                 type="button"
                 aria-haspopup="dialog"
@@ -346,8 +356,10 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 }}
               >
                 <LibraryBig size={15} />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="workspace-component-button"
                 type="button"
                 aria-haspopup="dialog"
@@ -361,8 +373,10 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 }}
               >
                 <Images size={15} />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="workspace-theme-button"
                 type="button"
                 aria-pressed={darkMode}
@@ -371,8 +385,10 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 onClick={() => setDarkMode((active) => !active)}
               >
                 {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className={`workspace-preview-button ${previewOpen ? 'is-active' : ''}`}
                 type="button"
                 aria-controls="workspace-preview-pane"
@@ -382,10 +398,12 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 onClick={() => setPreviewOpen((open) => !open)}
               >
                 <PanelRight size={15} />
-              </button>
-  
+              </Button>
+
               <div ref={menuRef} className="workspace-account-menu-wrap">
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="workspace-icon-button"
                   type="button"
                   aria-label="更多操作"
@@ -394,8 +412,10 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                   onClick={() => setAccountMenuOpen((open) => !open)}
                 >
                   <MoreHorizontal size={18} />
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="workspace-avatar"
                   type="button"
                   aria-label={`${user.name} 的账户菜单`}
@@ -403,8 +423,8 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                   onClick={() => setAccountMenuOpen((open) => !open)}
                 >
                   {userInitials}
-                </button>
-  
+                </Button>
+
                 {accountMenuOpen ? (
                   <div className="workspace-account-menu" role="menu">
                     <div className="workspace-account-summary">
@@ -414,7 +434,9 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                         <small>{user.email}</small>
                       </span>
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       type="button"
                       role="menuitem"
                       onClick={() => {
@@ -424,9 +446,11 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                       }}
                     >
                       <Plus size={15} />
-                      New page
-                    </button>
-                    <button
+                      新建文章
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       type="button"
                       role="menuitem"
                       onClick={() => {
@@ -435,9 +459,11 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                       }}
                     >
                       <Settings size={15} />
-                      Settings
-                    </button>
-                    <button
+                      设置
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="is-danger"
                       type="button"
                       role="menuitem"
@@ -445,8 +471,8 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                       onClick={onSignOut}
                     >
                       <LogOut size={15} />
-                      {isSigningOut ? 'Signing out…' : 'Sign out'}
-                    </button>
+                      {isSigningOut ? '正在退出…' : '退出登录'}
+                    </Button>
                   </div>
                 ) : null}
               </div>
@@ -467,7 +493,9 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 onBrandAssetLibraryOpenChange={setBrandAssetLibraryOpen}
                 onComponentLibraryOpenChange={setComponentLibraryOpen}
               />
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 className="workspace-help-button"
                 type="button"
                 onClick={() => setView('start')}
@@ -475,40 +503,45 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 title="帮助"
               >
                 ?
-              </button>
+              </Button>
             </div>
-
-            {previewOpen ? (
-              <>
-                <ResizeHandle
-                  active={activeResize === 'preview'}
-                  edge="preview"
-                  label="调整编辑区和预览区宽度"
-                  value={panelWidths.preview}
-                  min={MIN_PREVIEW_WIDTH}
-                  max={MAX_PREVIEW_WIDTH}
-                  onKeyDown={resizeWithKeyboard}
-                  onPointerCancel={endResize}
-                  onPointerDown={beginResize}
-                  onPointerMove={updateResize}
-                  onPointerUp={endResize}
-                />
-                <section
-                  id="workspace-preview-pane"
-                  className="workspace-preview-pane"
-                  aria-label="文章分享预览"
-                  style={{ width: panelWidths.preview, flexBasis: panelWidths.preview }}
-                >
-                  <WeChatPreview
-                    doc={currentDoc}
-                    userId={user.id}
-                    onClose={() => setPreviewOpen(false)}
-                  />
-                </section>
-              </>
-            ) : null}
           </div>
         </section>
+
+        <div
+          className="workspace-preview-layer"
+          style={view !== 'editor' ? { display: 'none' } : undefined}
+        >
+          {previewOpen ? (
+            <>
+              <ResizeHandle
+                active={activeResize === 'preview'}
+                edge="preview"
+                label="调整编辑区和预览区宽度"
+                value={panelWidths.preview}
+                min={MIN_PREVIEW_WIDTH}
+                max={MAX_PREVIEW_WIDTH}
+                onKeyDown={resizeWithKeyboard}
+                onPointerCancel={endResize}
+                onPointerDown={beginResize}
+                onPointerMove={updateResize}
+                onPointerUp={endResize}
+              />
+              <section
+                id="workspace-preview-pane"
+                className="workspace-preview-pane"
+                aria-label="文章分享预览"
+                style={{ width: panelWidths.preview, flexBasis: panelWidths.preview }}
+              >
+                <WeChatPreview
+                  doc={currentDoc}
+                  userId={user.id}
+                  onClose={() => setPreviewOpen(false)}
+                />
+              </section>
+            </>
+          ) : null}
+        </div>
       </main>
 
       <SettingsModal

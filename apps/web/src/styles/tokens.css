@@ -1,0 +1,108 @@
+:root {
+  --ui-background: #fafafa;
+  --ui-surface: #ffffff;
+  --ui-surface-subtle: #f5f5f6;
+  --ui-border: rgba(41, 39, 34, 0.1);
+  --ui-border-strong: rgba(41, 39, 34, 0.18);
+  --ui-text: #202124;
+  --ui-text-secondary: #696d75;
+  --ui-text-muted: #999da5;
+  --ui-primary: #202124;
+  --ui-primary-hover: #35363a;
+  --ui-primary-soft: #f2f2f3;
+  --ui-primary-border: #dedee2;
+  --ui-status-success: #267357;
+  --ui-status-success-soft: #edf6f1;
+  --ui-status-danger: #b34b48;
+  --ui-status-danger-soft: #fbefed;
+  --ui-overlay: rgba(31, 30, 27, 0.44);
+  --ui-focus-ring: rgba(83, 103, 216, 0.34);
+  --ui-radius-control: 8px;
+  --ui-radius-surface: 12px;
+  --ui-radius-overlay: 16px;
+  --ui-shadow-xs: 0 1px 1px rgba(35, 33, 28, 0.05);
+  --ui-shadow-card: 0 1px 2px rgba(35, 33, 28, 0.04), 0 12px 30px rgba(35, 33, 28, 0.06);
+  --ui-shadow-floating: 0 12px 32px rgba(35, 33, 28, 0.12), 0 2px 6px rgba(35, 33, 28, 0.06);
+  --ui-shadow-overlay: 0 28px 80px rgba(27, 26, 23, 0.2), 0 4px 12px rgba(27, 26, 23, 0.08);
+  --ui-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ui-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ui-press-scale: 0.97;
+  --ui-enter-offset: 8px;
+  --ui-enter-scale: 0.97;
+  --ui-toast-offset: -100%;
+
+  /* Compatibility aliases used by existing components. */
+  --ui-app-bg: var(--ui-background);
+  --ui-subtle: var(--ui-surface-subtle);
+  --ui-line: var(--ui-border);
+  --ui-line-strong: var(--ui-border-strong);
+  --ui-muted: var(--ui-text-muted);
+  --ui-accent: var(--ui-primary);
+  --ui-accent-border: var(--ui-primary-border);
+  --ui-accent-hover: var(--ui-primary-hover);
+  --ui-accent-soft: var(--ui-primary-soft);
+  --ui-success: var(--ui-status-success);
+  color: var(--ui-text);
+  background: var(--ui-background);
+  font-family:
+    Inter,
+    'PingFang SC',
+    'Microsoft YaHei',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  /* CJK fonts often lack italic faces; allow slant synthesis for rich text. */
+  font-synthesis: style;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Settings 模块只通过这些稳定的 data attributes 影响全局外观。 */
+:root[data-ui-accent='purple'] {
+  --ui-primary: #7c5ce7;
+  --ui-primary-hover: #6948d2;
+  --ui-primary-soft: #f3efff;
+  --ui-primary-border: #d9cef9;
+  --ui-focus-ring: rgba(124, 92, 231, 0.36);
+}
+
+:root[data-ui-accent='green'] {
+  --ui-primary: #2f8061;
+  --ui-primary-hover: #276c52;
+  --ui-primary-soft: #edf7f2;
+  --ui-primary-border: #c5e2d5;
+  --ui-focus-ring: rgba(47, 128, 97, 0.34);
+}
+
+:root[data-ui-accent='graphite'] {
+  --ui-primary: #4f5967;
+  --ui-primary-hover: #3e4651;
+  --ui-primary-soft: #eff1f3;
+  --ui-primary-border: #d1d6dc;
+  --ui-focus-ring: rgba(79, 89, 103, 0.34);
+}
+
+:root[data-ui-scale='small'] {
+  font-size: 14px;
+}
+
+:root[data-ui-scale='large'] {
+  font-size: 18px;
+}
+
+:root[data-ui-reduce-motion='true'] *,
+:root[data-ui-reduce-motion='true'] *::before,
+:root[data-ui-reduce-motion='true'] *::after {
+  scroll-behavior: auto !important;
+}
+
+:root[data-ui-reduce-motion='true'] {
+  --ui-press-scale: 1;
+  --ui-enter-offset: 0px;
+  --ui-enter-scale: 1;
+  --ui-toast-offset: 0%;
+}

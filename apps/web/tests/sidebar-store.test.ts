@@ -105,15 +105,13 @@ test('trash and publication history survive reload and remain isolated between a
 });
 
 test('legacy workspaces without publication records do not inherit another account history', async () => {
-  store
-    .getState()
-    .savePublishRecord({
-      publishId: 'old',
-      docId: 'doc',
-      title: 'Other account',
-      submittedAt: '',
-      state: 'publishing',
-    });
+  store.getState().savePublishRecord({
+    publishId: 'old',
+    docId: 'doc',
+    title: 'Other account',
+    submittedAt: '',
+    state: 'publishing',
+  });
   storage.setItem(
     'block-notes-docs-user:legacy-owner',
     JSON.stringify({ version: 1, state: { docs: store.getState().docs, currentDocId: '' } }),
@@ -124,17 +122,15 @@ test('legacy workspaces without publication records do not inherit another accou
 
 test('late publication responses cannot write into a newly signed-in account', async () => {
   await loadDocsForUser('next-owner');
-  store
-    .getState()
-    .savePublishRecord(
-      {
-        publishId: 'late',
-        docId: 'doc',
-        title: 'Previous account',
-        submittedAt: '',
-        state: 'published',
-      },
-      'test-owner',
-    );
+  store.getState().savePublishRecord(
+    {
+      publishId: 'late',
+      docId: 'doc',
+      title: 'Previous account',
+      submittedAt: '',
+      state: 'published',
+    },
+    'test-owner',
+  );
   assert.deepEqual(store.getState().publishRecords, []);
 });

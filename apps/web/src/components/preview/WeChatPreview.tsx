@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   Code2,
   Copy,
-  FileCode2,
   Monitor,
   Palette,
   Send,
@@ -316,20 +315,16 @@ export function WeChatPreview({ doc, onClose, userId }: WeChatPreviewProps) {
       <aside className="preview-pane flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--ui-surface-subtle)]">
         <header className="preview-toolbar">
           <div className="preview-heading flex min-w-0 items-center gap-2.5">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[var(--ui-surface-subtle)] text-[var(--ui-text-secondary)]">
-              <FileCode2 size={15} strokeWidth={1.9} />
-            </span>
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-[13px] font-semibold tracking-[-0.01em] text-[var(--ui-text)]">
+              <h2 className="m-0 truncate text-[12px] font-medium text-[var(--ui-text)]">
                 微信预览
               </h2>
-              <div className="truncate text-[11px] text-[var(--ui-muted)]">内容实时同步</div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
             <div
-              className="flex shrink-0 items-center rounded-[9px] border border-[var(--ui-line)] bg-[var(--ui-subtle)] p-1"
+              className="preview-device-switch flex shrink-0 items-center rounded-[5px] bg-[var(--ui-subtle)] p-0.5"
               aria-label="预览设备"
             >
               <DeviceButton
@@ -350,7 +345,6 @@ export function WeChatPreview({ doc, onClose, userId }: WeChatPreviewProps) {
             <ActionButton
               icon={<Copy size={15} />}
               label="复制到微信"
-              primary
               onClick={handleCopyToWechat}
             />
             <ActionButton
@@ -361,6 +355,7 @@ export function WeChatPreview({ doc, onClose, userId }: WeChatPreviewProps) {
             <ActionButton
               icon={<Send size={15} />}
               label="一键发布"
+              primary
               onClick={() => setPublishOpen(true)}
             />
           </div>
@@ -507,12 +502,14 @@ export function WeChatPreview({ doc, onClose, userId }: WeChatPreviewProps) {
               previewMode === 'mobile' ? 'preview-paper-mobile' : 'preview-paper-desktop'
             }`}
           >
-            <div className="preview-paper-bar flex h-10 items-center justify-between border-b border-[var(--ui-line)] bg-[#faf9f5] px-3 text-[11px] text-[var(--ui-muted)]">
-              <span className="flex items-center gap-1.5 font-medium text-[var(--ui-text-secondary)]">
-                <FileCode2 size={13} />
-                文章预览
+            <div className="preview-paper-bar">
+              <span className="preview-publication-avatar" aria-hidden="true">
+                A
               </span>
-              <span>{previewMode === 'mobile' ? '手机 · 375 px' : '桌面视图'}</span>
+              <div className="preview-publication-meta">
+                <strong>{doc.author || 'AutoMatic'}</strong>
+                <span>{previewMode === 'mobile' ? '手机预览' : '桌面预览'}</span>
+              </div>
               <CheckCircle2 size={14} className="text-[var(--ui-success)]" />
             </div>
             <article
@@ -586,9 +583,9 @@ function ActionButton({
 }) {
   return (
     <button
-      className={`ui-pressable flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-[9px] border px-3 text-xs font-medium ${
+      className={`preview-action-button ui-pressable flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-[5px] border px-3 text-xs font-medium ${
         primary
-          ? 'border-[var(--ui-accent)] bg-[var(--ui-accent)] text-white hover:border-[var(--ui-accent-hover)] hover:bg-[var(--ui-accent-hover)]'
+          ? 'is-primary border-[var(--ui-accent)] bg-[var(--ui-accent)] text-white hover:border-[var(--ui-accent-hover)] hover:bg-[var(--ui-accent-hover)]'
           : 'border-[var(--ui-line)] bg-[var(--ui-surface)] text-[var(--ui-text-secondary)] hover:border-[var(--ui-line-strong)] hover:bg-[var(--ui-subtle)]'
       }`}
       type="button"
