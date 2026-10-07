@@ -25,7 +25,8 @@ set -eu
 [[ $1 == restart && $2 == automatic-api ]] || exit 2
 base=${AUTOMATIC_TEST_BASE:?}
 if [[ -f "$base/service.pid" ]]; then kill "$(cat "$base/service.pid")" 2>/dev/null || true; fi
-/usr/bin/node "$base/current/apps/api/dist/server.js" > "$base/service.log" 2>&1 &
+# Real systemd starts the service separately; do not inherit the caller's lock.
+/usr/bin/node "$base/current/apps/api/dist/server.js" > "$base/service.log" 2>&1 9>&- &
 echo $! > "$base/service.pid"
 sleep 0.2
 SHIM

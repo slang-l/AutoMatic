@@ -5,6 +5,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { runMigrations } from './database/migration-runner.js';
 import { createPostgresPool } from './database/postgres.js';
+import { createPostgresArticleRepository } from './repositories/postgres-article.repository.js';
 import { createPostgresAuthRepository } from './repositories/postgres.repository.js';
 import { createPostgresBrandAssetRepository } from './repositories/postgres-brand-asset.repository.js';
 import { createPostgresWechatRepository } from './repositories/postgres-wechat.repository.js';
@@ -53,6 +54,7 @@ const registrationVerificationCodeSender = config.resendEmail
 const app = buildApp({
   config,
   authRepository,
+  articleRepository: createPostgresArticleRepository(pool),
   brandAssetRepository,
   wechatRepository,
   collaborationRepository: createPostgresCollaborationRepository(pool),

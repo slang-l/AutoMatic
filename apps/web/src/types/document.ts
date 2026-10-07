@@ -52,3 +52,19 @@ export interface AppDoc {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface PublishRecord {
+  publishId: string;
+  docId: string;
+  title: string;
+  submittedAt: string;
+  state: 'publishing' | 'published' | 'failed';
+  articleUrl?: string | null;
+  message?: string;
+}
+
+export interface ArticleWorkspaceData {
+  docs: AppDoc[];
+  currentDocId: string;
+  publishRecords: PublishRecord[];
+}

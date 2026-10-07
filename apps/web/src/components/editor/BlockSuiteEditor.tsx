@@ -11,6 +11,7 @@ import {
   type BlockSuiteDocumentBridge,
 } from '../../adapters/blocksuite-adapter';
 import type { NormalizedBlock } from '../../types/document';
+import { registerArticleEditor } from '../../store/docsStore';
 
 const MAX_PERSISTED_IMAGE_SIZE = 1_500_000;
 
@@ -174,7 +175,9 @@ export const BlockSuiteEditor = forwardRef<BlockSuiteEditorHandle, BlockSuiteEdi
       let disposed = false;
       let blocksRevision = 0;
       let blocksTimer: number | undefined;
+      let blocksDirty = false;
       let titleTimer: number | undefined;
+      let pendingSerialization: Promise<void> | null = null;
       let toolbarFrame = 0;
       let selectionDisposable: { dispose: () => void } | undefined;
       let editorReady = false;
@@ -193,6 +196,26 @@ export const BlockSuiteEditor = forwardRef<BlockSuiteEditorHandle, BlockSuiteEdi
       const commitBlocks = blocksChangeRef.current;
       const commitTitle = titleChangeRef.current;
 
+      const serializeBlocks = () => {
+        window.clearTimeout(blocksTimer);
+        blocksTimer = undefined;
+        blocksDirty = false;
+        const revision = ++blocksRevision;
+        const serialization = normalizedBlocksFromBlockSuiteDoc(bridge.doc)
+          .then((nextBlocks) => {
+            if (!disposed && revision === blocksRevision) commitBlocks(nextBlocks);
+          })
+          .catch((error: unknown) => {
+            blocksDirty = true;
+            throw error;
+          })
+          .finally(() => {
+            if (pendingSerialization === serialization) pendingSerialization = null;
+          });
+        pendingSerialization = serialization;
+        return serialization;
+      };
+
       const bridge = createBlockSuiteDocument(title, blocks);
       bridgeRef.current = bridge;
 
@@ -210,21 +233,33 @@ export const BlockSuiteEditor = forwardRef<BlockSuiteEditorHandle, BlockSuiteEdi
       const blockDisposable = bridge.doc.slots.blockUpdated.on(() => {
         syncToolbar();
         window.clearTimeout(blocksTimer);
-        const revision = ++blocksRevision;
+        blocksDirty = true;
+        ++blocksRevision;
         blocksTimer = window.setTimeout(() => {
-          void normalizedBlocksFromBlockSuiteDoc(bridge.doc).then((nextBlocks) => {
-            if (!disposed && revision === blocksRevision) {
-              commitBlocks(nextBlocks);
-            }
-          });
+          void serializeBlocks().catch(() => undefined);
         }, 120);
       });
 
       const disposeTitleObserver = observeBlockSuiteTitle(bridge.doc, (nextTitle) => {
         window.clearTimeout(titleTimer);
         titleTimer = window.setTimeout(() => {
+          titleTimer = undefined;
           if (!disposed) commitTitle(nextTitle);
         }, 120);
+      });
+
+      const unregisterEditor = registerArticleEditor({
+        isDirty: () => blocksDirty || titleTimer !== undefined || pendingSerialization !== null,
+        flush: async () => {
+          if (disposed) return;
+          if (titleTimer !== undefined) {
+            window.clearTimeout(titleTimer);
+            titleTimer = undefined;
+            commitTitle(getBlockSuiteTitle(bridge.doc));
+          }
+          if (blocksDirty) await serializeBlocks();
+          else await pendingSerialization;
+        },
       });
 
       void editor.getUpdateComplete().then(() => {
@@ -239,8 +274,9 @@ export const BlockSuiteEditor = forwardRef<BlockSuiteEditorHandle, BlockSuiteEdi
       });
 
       return () => {
-        const shouldFlushBlocks = blocksTimer !== undefined;
+        const shouldFlushBlocks = blocksDirty || pendingSerialization !== null;
         const shouldFlushTitle = titleTimer !== undefined;
+        unregisterEditor();
         disposed = true;
         refreshToolbarRef.current = () => {};
         window.cancelAnimationFrame(toolbarFrame);

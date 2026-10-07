@@ -4,19 +4,68 @@ set -Eeuo pipefail
 [[ $EUID == 0 ]] || { echo 'Run with sudo'; exit 2; }
 action=${1:-}
 release=${2:-}
-[[ $# == 2 && $action =~ ^(deploy|rollback)$ && $release =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]] || { echo 'Usage: automatic-release deploy|rollback RELEASE_ID'; exit 2; }
+if [[ $action == status && $# == 1 ]]; then :
+elif [[ $# == 2 && $action =~ ^(deploy|rollback)$ && $release =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]]; then :
+else echo 'Usage: automatic-release status | deploy RELEASE_ID | rollback previous|RELEASE_ID'; exit 2; fi
 base=/srv/automatic
-target="$base/releases/$release"
+public_url=https://180.76.248.209
+# This optional file is managed by the administrator, never by the deploy user.
+if [[ -f /etc/automatic/release.conf ]]; then
+  [[ ! -L /etc/automatic/release.conf && $(stat -c %u /etc/automatic/release.conf) == 0 ]] || exit 2
+  [[ $(( 8#$(stat -c %a /etc/automatic/release.conf) & 022 )) == 0 ]] || exit 2
+  # shellcheck source=/dev/null
+  source /etc/automatic/release.conf
+fi
 exec 9>/run/automatic-release.lock
 flock -w 300 9 || { echo 'Another deployment is running'; exit 1; }
 previous=$(readlink -f "$base/current" || true)
+
+if [[ $action == status ]]; then
+  python3 - "$base" <<'PY'
+import json, pathlib, re, sys
+base = pathlib.Path(sys.argv[1])
+pattern = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,100}')
+current = (base / 'current').resolve()
+releases = []
+for root in sorted((base / 'releases').iterdir(), key=lambda p: p.name, reverse=True):
+    if root.is_symlink() or not root.is_dir() or not pattern.fullmatch(root.name):
+        continue
+    if not (root / 'apps/api/dist/server.js').is_file():
+        continue
+    manifest = root / 'release.json'
+    data = json.loads(manifest.read_text()) if manifest.exists() else {}
+    releases.append({'release': root.name, 'commit': data.get('commit', ''), 'builtAt': data.get('builtAt'), 'active': root == current})
+active = next((item for item in releases if item['active']), None)
+old = base / 'shared/previous-release'
+old_path = pathlib.Path(old.read_text().strip()) if old.exists() else None
+old_name = old_path.name if old_path and old_path.parent == base / 'releases' else None
+print(json.dumps({'release': active['release'] if active else None,
+    'commit': active['commit'] if active else None,
+    'manifest': (current / 'release.json').is_file(),
+    'previous': old_name if old_name and pattern.fullmatch(old_name) else None,
+    'releases': releases}))
+PY
+  exit 0
+fi
+
+if [[ $action == rollback && $release == previous ]]; then
+  test -s "$base/shared/previous-release" || { echo 'No previous release is recorded'; exit 2; }
+  candidate=$(cat "$base/shared/previous-release")
+  [[ $candidate == "$base/releases/"* && $(dirname -- "$candidate") == "$base/releases" ]] || { echo 'Invalid previous release pointer'; exit 2; }
+  release=$(basename -- "$candidate")
+  [[ $release =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]] || exit 2
+fi
+target="$base/releases/$release"
 scratch=$(mktemp -d /var/tmp/automatic-release.XXXXXXXX)
 trap 'rm -rf "$scratch"' EXIT
 
 health() {
-  python3 - "$1" <<'PY'
-import json, pathlib, subprocess, sys, time, urllib.request
+  python3 - "$1" "$public_url" <<'PY'
+import json, pathlib, subprocess, sys, time, urllib.request, urllib.parse
 root = pathlib.Path(sys.argv[1])
+public_url = sys.argv[2].rstrip('/')
+host = urllib.parse.urlparse(public_url).hostname
+port = urllib.parse.urlparse(public_url).port or 443
 manifest = root / 'release.json'
 expected = json.loads(manifest.read_text()) if manifest.exists() else None
 for _ in range(40):
@@ -27,7 +76,7 @@ for _ in range(40):
         if expected:
             assert data.get('release') == expected['release'] and data.get('commit') == expected['commit']
             response = subprocess.run(['curl', '--fail', '--silent', '--show-error', '--max-time', '5',
-                '--resolve', '180.76.248.209:443:127.0.0.1', 'https://180.76.248.209/version.json'],
+                '--resolve', host + ':' + str(port) + ':127.0.0.1', public_url + '/version.json'],
                 capture_output=True, text=True, check=True)
             web = json.loads(response.stdout)
             assert web['release'] == expected['release'] and web['commit'] == expected['commit']
@@ -67,14 +116,23 @@ recover() {
 }
 
 if [[ $action == deploy ]]; then
-  [[ ! -e $target ]] || { echo 'Release already exists; use a new workflow attempt'; exit 2; }
   install -m 600 "$base/incoming/$release.tar.gz" "$scratch/release.tar.gz"
   install -m 600 "$base/incoming/$release.sha256" "$scratch/release.sha256"
   digest=$(tr -d '\r\n' < "$scratch/release.sha256")
   [[ $digest =~ ^[a-f0-9]{64}$ ]] || exit 2
   actual=$(sha256sum "$scratch/release.tar.gz" | cut -d ' ' -f 1)
   [[ $actual == "$digest" ]] || { echo 'Artifact checksum mismatch'; exit 2; }
-  python3 - "$scratch/release.tar.gz" "$target" "$release" <<'PY'
+  if [[ -e $target ]]; then
+    [[ -d $target && ! -L $target && $(readlink -f "$target") == "$target" ]] || exit 2
+    test -f "$target/.artifact-sha256" || { echo 'Existing legacy release has no artifact fingerprint; deploy a new CI run or use rollback'; exit 2; }
+    [[ $(cat "$target/.artifact-sha256") == "$digest" ]] || { echo 'Existing release has different artifact bytes'; exit 2; }
+    if [[ $previous == "$target" ]] && health "$target"; then
+      echo "Already active and healthy: $release"
+      exit 0
+    fi
+    echo "Reusing verified server release: $release"
+  else
+    python3 - "$scratch/release.tar.gz" "$target" "$release" <<'PY'
 import json, pathlib, re, sys, tarfile
 archive, target, release = sys.argv[1:]
 with tarfile.open(archive) as tar:
@@ -93,19 +151,21 @@ with tarfile.open(archive) as tar:
     pathlib.Path(target).mkdir(mode=0o700)
     tar.extractall(target, filter='data')
 PY
+    printf '%s\n' "$digest" > "$target/.artifact-sha256"
+  fi
   test -f "$target/apps/api/dist/server.js"
   test -f "$target/apps/api/dist/database/migrate.js"
   test -f "$target/apps/api/node_modules/pg/package.json"
   test -f "$target/apps/web/dist/index.html"
-  chown -R root:root "$target"
+  chown -R -h root:root "$target"
   chmod -R u=rwX,go=rX "$target"
-  ln -s "$base/shared/api.env" "$target/apps/api/.env"
+  ln -sfn "$base/shared/api.env" "$target/apps/api/.env"
   install -d -m 700 /var/backups/automatic
   umask 077
-  backup="/var/backups/automatic/predeploy-$release.dump"
+  backup="/var/backups/automatic/predeploy-$release-$(date -u +%Y%m%dT%H%M%S)-$$.dump"
   docker compose -f "$base/shared/compose.yaml" exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup"
   test -s "$backup"
-  cp -a "$base/shared/api.env" "/var/backups/automatic/api-$release.env"
+  cp -a "$base/shared/api.env" "${backup%.dump}.env"
   (cd "$target/apps/api" && runuser -u automatic -- /usr/bin/node dist/database/migrate.js)
   cp -a "$target/apps/web/dist/assets/." /var/www/automatic/assets/
   find /var/www/automatic/assets -type d -exec chmod 755 {} +
@@ -115,6 +175,10 @@ else
   [[ $(readlink -f "$target") == "$target" ]] || exit 2
   test -f "$target/apps/api/dist/server.js"
   test -f "$target/apps/web/dist/index.html"
+  if [[ $previous == "$target" ]] && health "$target"; then
+    echo "Already active and healthy: $release"
+    exit 0
+  fi
   echo 'Rollback changes code only. Database schema must remain compatible.'
 fi
 trap recover ERR

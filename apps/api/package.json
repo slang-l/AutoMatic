@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "tsx --test test/app.test.ts test/collaboration.test.ts"
+    "test": "tsx --test test/app.test.ts test/collaboration.test.ts test/articles.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

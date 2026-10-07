@@ -1,0 +1,10 @@
+# Match the production/Actions OS and Node major for local CI verification.
+FROM node:22-bookworm AS node_runtime
+FROM ubuntu:24.04
+COPY --from=node_runtime /usr/local/ /usr/local/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 curl ca-certificates git shellcheck build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install --global --force pnpm@9.15.4 \
+    && ln -s /usr/local/bin/node /usr/bin/node
+WORKDIR /build

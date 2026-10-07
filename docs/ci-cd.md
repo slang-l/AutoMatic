@@ -1,71 +1,120 @@
 # AutoMatic CI/CD 操作与学习指南
 
-本项目使用 GitHub Actions，仓库是 `slang-l/AutoMatic`，主分支是 `master`，生产地址是 <https://180.76.248.209>。沿用现有 Nginx、systemd、PostgreSQL 17 和 Node.js 22，不要求重建服务器或切换容器架构。
+本项目使用 GitHub Actions，仓库为 `slang-l/AutoMatic`，主分支为 `master`，生产地址为 <https://180.76.248.209>。保留现有 Ubuntu 24.04、Node.js 22、pnpm 9.15.4、Nginx、systemd 和 PostgreSQL 17 部署方式。
 
-CI/CD 配置已经写入本地仓库。GitHub 上的运行需要先提交、推送这些文件，并配置下面的 Environment、Secrets 和 Variables。服务器准备和本地验证不能代替一次实际的 GitHub Actions 运行。
+这次改造提供验证、部署、正式版本发布、回滚和版本查询入口。**构建一次，通过验证后重复使用同一个发布包**。服务器只校验、备份、迁移和切换版本，不重新安装应用依赖或编译。
 
-## 1. 先理解 CI、CD 各自做什么
+## 1. 配置完成后的日常命令
 
-**CI（持续集成）**：提交代码后，自动检查格式、类型、测试、数据库集成和生产构建，尽早发现问题。
+在项目根目录执行：
 
-**CD（持续部署）**：仅当 CI 全部成功，并且代码来自 `master` 时，将 CI 验证过的发布包部署到生产。
+```powershell
+pnpm ci:local                       # Docker 中完整验证本地工作区，不发布
+pnpm ci:run                         # 在 GitHub 验证并构建远端 master
+pnpm deploy:prod                    # 部署远端 master 当前提交的成功 CI 包
+pnpm release 1.2.3                  # 创建 v1.2.3 Release，并部署这个包
+pnpm release 1.2.4 --no-deploy       # 只保存正式版本，暂不上线
+pnpm deploy:prod --tag v1.2.3        # 使用已有 Release 包再次部署
+pnpm deploy:prod --run 123456789     # 部署指定成功 CI Run 的包
+pnpm rollback                       # 回滚服务器记录的上一版代码
+pnpm rollback RELEASE_ID            # 回滚服务器保留的指定版本
+pnpm deploy:status                  # 查询当前、上一版和服务器保留版本
+pnpm cicd --help                    # 查看完整帮助
+```
 
-这里默认支持自动部署。你也可以在 GitHub 的 `production` Environment 中设置部署审核；审核人功能是否可用取决于仓库可见性和 GitHub 套餐。
+部署命令是 **`pnpm deploy:prod`**。`pnpm deploy` 是 pnpm 自带的依赖打包命令，不是本项目的上线入口。
+
+除 `ci:local` 外，这些命令操作 GitHub 上的代码，默认等待 Actions 结束，在失败时返回非零退出码。输出的任务链接可查看 Summary 和日志。`--no-wait` 只触发任务，不代表部署完成。
+
+本地有未提交文件，或本地 HEAD 与远端 `master` 不同时，`ci:run`、默认部署和 `release` 会拒绝执行，避免误以为本地修改已经上线。明确只操作远端时可加 `--remote`：
+
+```powershell
+pnpm deploy:prod --remote
+pnpm release 1.2.3 --remote
+```
+
+`--remote` 不上传本地文件。指定标签、指定 Run、回滚和状态查询已经明确目标，不要求工作区干净。
+
+## 2. 不使用终端也能一键操作
+
+打开 [GitHub Actions](https://github.com/slang-l/AutoMatic/actions)，选择工作流，点击 **Run workflow**，分支均选择 `master`。
+
+| 工作流                  | 输入                               | 结果                                           |
+| ----------------------- | ---------------------------------- | ---------------------------------------------- |
+| **CI**                  | 可选备注                           | 验证、构建并保存当前 master 发布包，不自动上线 |
+| **Deploy production**   | source=latest，reference 留空      | 部署当前 master 成功 CI 的包                   |
+| **Deploy production**   | source=run，reference 填 CI Run ID | 部署指定成功构建，不重建                       |
+| **Deploy production**   | source=tag，reference 填 v1.2.3    | 从 GitHub Release 下载版本并部署               |
+| **Publish release**     | version 填 1.2.3，deploy 勾选      | 创建标签、保存已验证包，然后部署               |
+| **Publish release**     | version 填 1.2.3，deploy 取消勾选  | 仅保存版本                                     |
+| **Rollback production** | release 留空或填 previous          | 回滚上一版代码                                 |
+| **Rollback production** | release 填服务器已有发布编号       | 回滚指定保留版本                               |
+| **Production status**   | 无必填项                           | 在 Summary 显示当前、上一版和保留版本          |
+
+默认部署和正式版本发布只选择 **master 当前提交** 的成功构建。如果正在构建，最多等待 10 分钟；如果失败、没有构建或包过期，会报错，不拿较旧提交代替。此时先运行 **CI**，成功后重试。
+
+## 3. 理解 CI 与 CD
+
+CI 是持续集成：提交后自动检查代码、测试数据库操作并构建，尽早发现问题。CD 是持续部署：把验证过的包传到服务器，完成备份、迁移、切换和健康检查。
 
 ```mermaid
 flowchart TD
-  A[开发分支提交] --> B[Pull Request 到 master]
-  B --> C[格式、类型、测试、构建]
-  C --> D[发布包与隔离数据库验证]
-  D --> E[代码审查并合并到 master]
-  E --> F[重新执行 CI 并保存发布包]
-  F --> G[production 环境与部署锁]
-  G --> H[SSH 上传包与 SHA256]
-  H --> I[备份数据库与配置]
-  I --> J[执行数据库迁移]
-  J --> K[切换 current 并重启 API]
-  K --> L{API 与前端版本正确?}
-  L -->|是| M[记录部署成功]
-  L -->|否| N[切回之前代码并报告失败]
+  A[开发分支和 Pull Request] --> B[格式、类型、测试、生产构建]
+  B --> C[审查并合并到 master]
+  C --> D[CI 构建并验证发布包]
+  D --> E[Actions Artifact，保留 30 天]
+  E --> F[自动部署或一键部署]
+  E --> G[Publish release 保存带版本号的包]
+  G --> F
+  F --> H[校验、备份数据库、执行迁移]
+  H --> I[切换 current 并重启 API]
+  I --> J{API 和前端版本正确}
+  J -->|是| K[部署成功]
+  J -->|否| L[恢复之前代码并报告失败]
 ```
 
-PR 会执行检查并生成发布包，**不会拿到生产 SSH 密钥，也不会部署**。部署 job 还要求 `DEPLOY_ENABLED=true`，因此可以先启用 CI，再启用自动部署。
+PR 执行格式、类型、单元测试、PostgreSQL 集成测试和生产构建，不打生产发布包、不使用生产 SSH 凭据。master CI 再打包，验证包内的生产入口和依赖。
 
-## 2. 项目中新增的文件
+推送或合并到 master 后，**成功的 push CI** 会触发自动部署，前提是仓库变量 `DEPLOY_ENABLED=true` 且 `AUTO_DEPLOY` 没有设为 `false`。手动运行 **CI** 只构建；随后从部署或发布入口选择是否上线。
 
-| 文件                                     | 职责                                                    |
-| ---------------------------------------- | ------------------------------------------------------- |
-| `.github/workflows/ci-cd.yml`            | PR/master 检查、Linux 构建、打包、生产部署              |
-| `.github/workflows/rollback.yml`         | 手动回滚到服务器已有版本                                |
-| `.github/actions/prepare-ssh/action.yml` | 配置专用 SSH 密钥与已验证的服务器主机公钥               |
-| `.gitmodules`                            | 让全新克隆可以拉取 BlockSuite 子模块                    |
-| `patches/blocksuite/*.patch`             | 保存原先只存在本地的两处 BlockSuite 修正                |
-| `scripts/apply-blocksuite-patches.mjs`   | 应用补丁；已应用则跳过，冲突则报错                      |
-| `ops/package-release.sh`                 | 打包前端、API、迁移和 API 生产依赖，生成元数据与 SHA256 |
-| `scripts/smoke-release.mjs`              | 对实际发布包运行 PostgreSQL、登录、续期、退出测试       |
-| `ops/bootstrap-cicd.sh`                  | 一次性准备专用部署账号、SSH 公钥、sudo 和 systemd 配置  |
-| `ops/automatic-release.sh`               | 服务器上的校验、备份、迁移、切换、检查和回滚            |
+部署工作流直接下载成功 CI 的包。正式版本发布也复用这个包：先建草稿，上传 tar.gz、SHA256、清单，全部完成后公开 Release，再显式调用部署工作流。
 
-服务器使用的是已安装到 `/usr/local/sbin/automatic-release` 的 root 所有脚本。普通发布包不包含新的 root 部署脚本；修改 `ops/automatic-release.sh` 后，需要管理员审查并重新执行 bootstrap 安装它。
+## 4. 首次启用：提交代码
 
-## 3. 为什么必须先处理 BlockSuite
+本次开发没有自动提交、推送、配置 GitHub Secrets 或切换生产服务。当前工作区的文章持久化、路由等修改，如需一起发布，应连同依赖和锁文件审查后提交。
 
-根仓库将 `packages/blocksuite` 记录为 Git 子模块，固定在 `8aed732697d88d4257c3aa706f3d47c942cd7420`。原先缺少 `.gitmodules`，两处修改也没有被父仓库保存，直接让 CI checkout 会漏掉它们。
+```powershell
+git status --short
+git diff
+node scripts/apply-blocksuite-patches.mjs
+pnpm install --frozen-lockfile
+pnpm ci:local
+```
 
-现在采用“上游固定提交 + 父仓库中的补丁”，无需先创建自己的 BlockSuite fork：
+`ci:local` 需要运行中的 Docker，首次会下载测试镜像和依赖。在 Linux 容器中复制工作区，排除 `.env`、本机依赖和临时文件，创建独立 PostgreSQL，不占用主机数据库端口。结束后清理本次创建的容器和网络，验证包保存在 `.tmp/cicd-linux/`。
 
-1. Actions 使用 `submodules: recursive` 拉取上游固定提交。
-2. 执行 `node scripts/apply-blocksuite-patches.mjs`。
-3. 修复编辑器的字段初始化问题，并将 `openai` 固定为 `4.47.2`，与现有锁文件一致。
-4. 再执行 `pnpm install --frozen-lockfile`。
+本地包的 `source=working-tree`，仅用于验证，不能经正式发布入口冒充已提交构建。GitHub CI 使用真实提交 SHA 和 `source=git`。
 
-你的现有子模块修改已与这两份补丁一致，脚本会跳过它们，不会 reset 工作区。
+创建分支，选择确认过的文件提交：
 
-以后升级 BlockSuite：先选择新的上游提交，再重新检查补丁、更新锁文件并跑完整 CI。不要把子模块中的更多未提交修改当作 CI 能自动获取的代码。较多长期改动可以再迁移到自己的 fork。
+```powershell
+git switch -c feat/cicd-release-controls
+git add .github ops scripts package.json README.md docs/ci-cd.md docs/deployment.md
+# 应用功能和锁文件如需一起上线，请审查后另外 git add 对应文件。
+git diff --cached
+git commit -m "feat: add one-command release deployment and rollback"
+git push -u origin feat/cicd-release-controls
+```
 
-## 4. 一次性准备部署密钥和服务器
+创建目标为 master 的 PR，确认 **Verify and package** 通过后合并。工作流文件必须进入默认分支，手动入口和本地命令才可调用。
 
-已在当前电脑生成专用密钥，位置为：
+BlockSuite 使用固定上游提交的子模块。两处已有修复保存在 `patches/blocksuite/`，Actions 检出后运行补丁脚本。无需 reset 子模块；后续新增修改应保存为补丁，或提交到可访问的 fork 再更新父仓库指针，不能只保留本地 dirty 状态。
+
+## 5. 首次启用：升级服务器发布命令
+
+新功能需要安装这次更新的 `ops/automatic-release.sh`。普通应用发布不会覆盖 root 所有的管理脚本；`status`、`rollback previous` 和重复部署需要升级后才能使用。
+
+当前电脑之前生成的专用文件为：
 
 ```text
 C:\Users\Admin\.ssh\automatic-github-actions
@@ -73,176 +122,88 @@ C:\Users\Admin\.ssh\automatic-github-actions.pub
 C:\Users\Admin\.ssh\automatic-production-known-hosts
 ```
 
-第一个文件是私钥，第二个是公钥，第三个是经过已有 SSH 连接验证的服务器主机公钥。私钥未放入项目，也不会被 Git 提交。电脑上的私钥已限制为当前用户可访问。
-
-首次准备其他服务器时，在自己的电脑生成不同密钥：
+依次为私钥、公钥和此前通过可信连接核验过的主机公钥。私钥不在项目内。将新 ops 和公钥上传，在管理员会话安装：
 
 ```powershell
-ssh-keygen -t ed25519 -C "automatic-github-actions" -f "$env:USERPROFILE\.ssh\automatic-github-actions"
+scp -r ops root@180.76.248.209:/tmp/automatic-cicd-ops
+scp "$env:USERPROFILE\.ssh\automatic-github-actions.pub" root@180.76.248.209:/tmp/automatic-github-actions.pub
+ssh root@180.76.248.209
 ```
 
-CI 使用无人值守密钥，生成时不要设置口令。将公钥和 `ops` 目录上传到服务器，在服务器执行：
+服务器执行：
 
 ```bash
-sudo bash ops/bootstrap-cicd.sh /path/to/automatic-github-actions.pub
+sudo bash /tmp/automatic-cicd-ops/bootstrap-cicd.sh /tmp/automatic-github-actions.pub
+sudo /usr/local/sbin/automatic-release status
 ```
 
-bootstrap 会：
+bootstrap 可重复运行，安装发布命令、`automatic-deploy` 专用账号、受限公钥和唯一 sudo 入口；API 仍由 `automatic` 运行，安装本身不重启 API。如果上传目标已存在，先确认新脚本实际路径。
 
-1. 创建 `automatic-deploy`，API 仍由 `automatic` 运行。
-2. 将公钥写入专用账号，设置 SSH `restrict`，关闭此密钥的转发和 PTY。
-3. 创建 `/srv/automatic/incoming`，供部署账号上传文件。
-4. 将发布脚本安装为 root 所有、普通账号不可修改。
-5. 只允许部署账号 sudo 执行 `automatic-release`，不授予通用 root shell 或 Docker 权限。
-6. 为 API 添加 `release.env`，用于显示当前发布编号与 Git 提交。
+服务器要求 Python 3.12+、Node.js 22、curl、Docker Compose 和现有 Nginx/systemd 配置。共享 API 配置、compose、数据卷和 JWT 密钥沿用已有值。
 
-部署账号拥有发布任意应用版本的能力；发布代码仍由权限较低的 `automatic` 执行。保管密钥时应按生产部署凭据管理。
-
-从可信的管理员连接获取服务器 ED25519 主机公钥：
+如改为域名，同时配置 DNS、Nginx、证书和 `CORS_ORIGINS`，由 root 将 `/etc/automatic/release.conf` 内容改为：
 
 ```bash
-awk '{print "180.76.248.209 " $1 " " $2}' /etc/ssh/ssh_host_ed25519_key.pub
+public_url=https://app.example.com
 ```
 
-将这整行保存为 known_hosts 内容。不要关闭 `StrictHostKeyChecking`，也不要在每次 CI 运行时盲目信任临时扫描结果。
+文件属于 root，普通账号不可写。GitHub `DEPLOY_URL` 应与其一致。保留 IP 时不用修改，默认 `https://180.76.248.209`。
 
-## 5. 在 GitHub 配置生产环境
+新服务器应单独生成部署密钥，并通过可信连接核验主机公钥。非默认 SSH 端口的 known_hosts 名称使用 `[180.76.248.209]:端口`。不关闭主机公钥校验，不把密码写进工作流。
 
-打开仓库 `https://github.com/slang-l/AutoMatic`，按以下步骤操作。
+## 6. 首次启用：配置 GitHub
 
-### 5.1 开启 Actions
+### 6.1 Actions 与 production
 
-进入 **Settings → Actions → General**，允许工作流运行以及本项目引用的 `actions/*` 和 `pnpm/action-setup`。项目已将第三方 Action 固定到具体提交 SHA。
+**Settings → Actions → General** 允许工作流，以及项目引用的 `actions/*`、`pnpm/action-setup`。第三方 Action 已固定具体提交 SHA。
 
-### 5.2 创建 production Environment
+**Settings → Environments** 创建 `production`，允许部署分支限制为 master。如果需要审批，可按 GitHub 套餐可用功能设置 Required reviewers；未设置审批时可以自动上线。
 
-进入 **Settings → Environments → New environment**，名称填写 `production`。
+### 6.2 Environment Secrets
 
-将 Deployment branches and tags 限制为 `master`。如果需要人工确认后上线，并且当前套餐支持，可设置 Required reviewers；不设置审核则 CI 成功后自动部署。
+| production Secret  | 内容                                                     |
+| ------------------ | -------------------------------------------------------- |
+| DEPLOY_SSH_KEY     | automatic-github-actions 私钥完整内容，包含 BEGIN/END 行 |
+| DEPLOY_KNOWN_HOSTS | 已核验的 automatic-production-known-hosts 完整内容       |
 
-### 5.3 配置 Environment Secrets
-
-在 `production` 的 Environment secrets 中添加：
-
-| 名称                 | 值                                                                |
-| -------------------- | ----------------------------------------------------------------- |
-| `DEPLOY_SSH_KEY`     | 本机 `automatic-github-actions` 私钥的完整内容，包含 BEGIN/END 行 |
-| `DEPLOY_KNOWN_HOSTS` | `automatic-production-known-hosts` 的完整内容                     |
-
-在 PowerShell 复制私钥到剪贴板，粘贴到 GitHub 的 Secret 输入框：
+PowerShell 复制文件后粘贴到对应 Secret：
 
 ```powershell
 Get-Content "$env:USERPROFILE\.ssh\automatic-github-actions" -Raw | Set-Clipboard
-```
-
-复制 known_hosts：
-
-```powershell
 Get-Content "$env:USERPROFILE\.ssh\automatic-production-known-hosts" -Raw | Set-Clipboard
 ```
 
-不要把私钥、服务器密码或生产 `.env` 写进 workflow、issue、PR 或仓库文件。
+每条命令后分别粘贴，再执行下一条。数据库、JWT、邮件和微信配置继续保存在服务器，不需要交给 GitHub。
 
-### 5.4 配置 Variables
+### 6.3 Variables
 
-| 位置                                                   | 名称             | 值                                     |
-| ------------------------------------------------------ | ---------------- | -------------------------------------- |
-| production → Environment variables                     | `DEPLOY_HOST`    | `180.76.248.209`                       |
-| Settings → Secrets and variables → Actions → Variables | `DEPLOY_ENABLED` | 先填 `false`，CI 验证成功后改为 `true` |
+| 位置                   | 名称           | 值及用途                                                   |
+| ---------------------- | -------------- | ---------------------------------------------------------- |
+| 仓库 Actions Variables | DEPLOY_ENABLED | 初始 false；服务器和 Secrets 就绪后改 true，启用部署和回滚 |
+| 仓库 Actions Variables | AUTO_DEPLOY    | 默认开启；填 false 改为仅手动上线                          |
+| production Variables   | DEPLOY_HOST    | 180.76.248.209                                             |
+| production Variables   | DEPLOY_PORT    | 可选，默认 22                                              |
+| production Variables   | DEPLOY_URL     | 可选，默认 https://180.76.248.209，支持 HTTPS 域名         |
 
-`DEPLOY_ENABLED` 必须是**仓库级变量**，因为部署 job 的 `if` 在进入 production 环境之前就会执行。
+DEPLOY_ENABLED、AUTO_DEPLOY 必须放在仓库级，来源解析发生在进入 production 之前。先保持 DEPLOY_ENABLED=false 验证 CI；再设 AUTO_DEPLOY=false、DEPLOY_ENABLED=true，手动部署验收，最后决定是否开启自动部署。
 
-生产数据库密码、JWT 密钥、Resend 和微信配置继续保留在服务器 `/srv/automatic/shared/api.env`。GitHub 不需要获得这些业务密钥。
+### 6.4 终端的一次性登录
 
-## 6. 第一次把这套配置提交到 GitHub
-
-当前工作区还有已经部署过、但尚未提交的 UI 与锁文件修改。先检查，确保希望上线的源码、`apps/web/package.json` 和 `pnpm-lock.yaml` 一起进入提交，否则 CI 构建的页面会与服务器当前版本不同。
-
-```powershell
-Set-Location D:\code\AutoMatic
-git status --short
-git diff
-node scripts/apply-blocksuite-patches.mjs
-pnpm install --frozen-lockfile
-pnpm format:check
-pnpm check
-```
-
-本地没有独立 PostgreSQL 测试库时，协同数据库测试会跳过；GitHub CI 配置了隔离 PostgreSQL，这个测试会实际运行。
-
-创建开发分支并分批添加：
+安装 GitHub CLI，在自己的终端执行：
 
 ```powershell
-git switch -c chore/ci-cd
-git add .github ops scripts patches .gitmodules .gitattributes docs/ci-cd.md
-git add README.md docs/deployment.md apps/api/package.json apps/api/src/routes/health.ts
-# 审查并加入确认要发布的前端及锁文件修改，包括未跟踪的新 UI 文件。
-git add apps/web pnpm-lock.yaml
-git diff --cached --stat
-git diff --cached
-git commit -m "chore: add verified artifact deployment pipeline"
-git push -u origin chore/ci-cd
+gh auth login
+gh auth status
+pnpm cicd --help
 ```
 
-子模块 HEAD 没有改变，两处本地修改由补丁保存，因此不需要把子模块的 dirty 状态提交到上游。不要将整个本地目录或 `.tmp` 上传到 GitHub。
+也可在终端设置 `GH_TOKEN`，令牌仅授权本仓库，需要 **Actions: write** 和 **Contents: read**。不保存到项目或 Git。创建 Release 的写权限由工作流自身的 GITHUB_TOKEN 提供。
 
-在 GitHub 创建 PR，目标分支选择 `master`，查看 **Checks → Verify and package**。全部成功后合并。再将 `DEPLOY_ENABLED` 改为 `true`，打开 **Actions → CI and Deploy → Run workflow**，选择 `master`，执行第一次正式发布。
+命令从 origin 推断仓库；可用 `GITHUB_REPOSITORY=owner/repository` 明确指定。默认等待最多 45 分钟，超时不会取消远端任务，应先查看状态再重试。
 
-## 7. 每次 CI 如何验证
+## 7. 每次开发、发布的步骤
 
-CI 在 Ubuntu 24.04、Node.js 22、pnpm 9.15.4 中执行：
-
-1. 检出父仓库和指定提交的子模块，应用补丁。
-2. 使用 `--frozen-lockfile` 安装依赖，防止 CI 偷偷改变依赖版本。
-3. ShellCheck 检查部署脚本，Prettier 检查项目格式，并通过 `ops/test-release-recovery.sh` 用隔离服务验证健康检查失败后的自动代码恢复；测试不连接生产服务或生产数据库。
-4. `pnpm check` 执行类型检查、后端测试、8 项已有的前端状态测试和生产构建。
-5. PostgreSQL 服务使用 `automatic_ci` 独立数据库，运行原先会跳过的协同测试。
-6. `pnpm deploy --prod` 将 API 与生产依赖放入独立目录，修正 pnpm 9 的工作区自引用链接，并检查所有运行依赖链接都位于包内。
-7. 打包已经构建的前端、API、迁移、运行依赖和 `release.json`。
-8. 解开**同一份发布包**，在隔离数据库运行它，验证真实迁移、发布身份、登录、Secure/HttpOnly Cookie、续期、退出。
-9. 保存 tar.gz 与 SHA256，保留 14 天。只有全部成功，部署 job 才会开始。
-
-发布包结构：
-
-```text
-release.json
-apps/
-  api/
-    package.json
-    dist/
-    migrations/
-    node_modules/       Linux 上生成的生产依赖，包含包内的 pnpm store
-  web/
-    dist/
-      index.html
-      assets/
-      version.json
-```
-
-不包含生产 `.env`，也不复制 Windows 的 `node_modules` 到 Linux。服务器无需重新执行依赖安装、TypeScript 编译或 Vite 构建，减少内存和外网依赖。
-
-## 8. 服务器如何发布
-
-发布编号形如 `123456789-1-a1b2c3d4e5f6`，依次表示 GitHub Run ID、重试次数和提交 SHA 前 12 位。
-
-服务器先通过 `flock` 串行化发布与回滚，避免 GitHub、手动 SSH 同时修改 `current`。GitHub 部署 job 本身也使用相同的 concurrency group，且不会主动中断正在发布的任务。
-
-发布过程：
-
-1. 复制上传文件到 root 私有临时目录，并检查 SHA256。
-2. 拒绝路径穿越、逃逸链接、不期望的内容和超限归档，检查平台与 Node 主版本。
-3. 解包到新的 `/srv/automatic/releases/发布编号`，运行代码目录设为 root 所有。
-4. 将 API `.env` 链接到原来的共享配置，保留已有 JWT 和数据库凭据。
-5. 在迁移前保存数据库备份和 API 配置。
-6. 用 `automatic` 账号执行迁移，不能修改已经应用过的 SQL 文件。
-7. 将 hash 静态资源加入共享 assets 目录，保留旧资源。
-8. 更新 `release.env`，原子切换 `current` 链接，重启 API。
-9. 检查 API 状态、实际运行的发布编号与完整 Git SHA，并检查 Nginx 返回的前端版本。
-10. 检查失败则恢复之前代码，重新启动并验证，同时让 Actions 标记失败。
-
-这仍然是单实例发布，切换期间会有短暂 API 重启窗口；不宣称零停机。验证码保存在进程内存中，重启会使此前签发的未使用验证码失效。
-
-## 9. 日常开发与发布流程
+### 7.1 开发与 PR
 
 ```powershell
 git switch master
@@ -250,95 +211,137 @@ git pull --ff-only
 git submodule update --init --recursive
 node scripts/apply-blocksuite-patches.mjs
 git switch -c feat/your-feature
-# 修改代码，执行本地检查。
+# 开发功能。
 pnpm format:check
-pnpm check
+pnpm ci:local
 git add <本次确认的文件>
 git commit -m "feat: describe the change"
 git push -u origin feat/your-feature
 ```
 
-创建 PR → CI 全部通过 → 审查并合并到 `master` → 观察 Actions 的 Deploy production → 检查页面。
+创建 PR → 等待 CI → 审查 → 合并。自动部署开启时，观察 **CI** 和随后 **Deploy production** 两个独立工作流，两者成功才是完成上线。建议 master Ruleset 要求 PR、Verify and package 成功，并禁止 force push。
 
-建议在 **Settings → Rules → Rulesets** 为 `master` 设置：必须经过 PR、必须通过 `Verify and package`、禁止 force push。是否要求其他人审查，按团队人数与 GitHub 功能可用性设置。
+### 7.2 快速更新线上
 
-排查发布编号：
+代码合并且 CI 成功后：
+
+```powershell
+git switch master
+git pull --ff-only
+pnpm deploy:prod
+```
+
+不会重建应用。同一包已上线且健康时直接返回成功，不再次重启。
+
+### 7.3 保存正式版本
+
+```powershell
+pnpm release 1.2.3
+```
+
+创建标签 v1.2.3、带更新说明的 GitHub Release 和验证包，然后部署。标签是版本名称，服务器编号仍是来源 CI 编号，不要求各 package.json 版本号同步。
+
+版本采用语义化版本：修复如 1.2.4，兼容新功能如 1.3.0，不兼容变更如 2.0.0，候选版本如 1.3.0-rc.1。公开版本不能覆盖；再次部署使用 `deploy:prod --tag`，修改内容使用新版本号。
+
+Actions 包保留 30 天，长期需要重新部署的版本保存为 Release。Release 仍校验标签 SHA 和成功 CI 记录，不要手工删除其来源 workflow run 或移动标签。
+
+上传中断保留草稿，同一来源包可重试；已有文件必须逐字节一致。如果 master 已更新或草稿属于不同构建，先检查草稿后选择新版本，脚本不覆盖文件。
+
+### 7.4 回滚
+
+```powershell
+pnpm deploy:status
+pnpm rollback
+```
+
+回滚后上一版指针更新为刚离开的版本，再次回滚可切回。指定版本使用 `pnpm rollback RELEASE_ID`。操作服务器本地 release，无需下载或构建；重复指定当前健康版本不重启、不丢失上一版。
+
+如果 master 仍有待完成的自动部署，新任务可能覆盖回滚，应先关闭 AUTO_DEPLOY 并修复有问题的提交。
+
+**回滚只恢复代码，不恢复数据库。** 迁移应向前兼容：先加表/字段，逐步迁移代码，最后另行删除旧结构。恢复备份可能丢失新数据，按 [部署与备份说明](deployment.md) 单独评估。
+
+## 8. 验证和部署内部机制
+
+CI 固定依赖安装，执行 ShellCheck、格式、类型、前后端测试和生产构建。临时 PostgreSQL 使用 automatic_ci 数据库，实际运行文章与协同集成测试。
+
+隔离部署测试验证故障后恢复代码、上一版回滚、状态、重复部署、同编号不同包拒绝、迁移失败重试和备份不覆盖，不使用生产目录、服务和数据。
+
+master CI 用 pnpm 9 的 `--filter @automatic/api deploy --prod` 创建包含 Linux 生产依赖的独立目录，检查符号链接在包内，再打包前端、API、迁移和 release.json。解开同一包启动生产入口，验证数据库迁移、版本身份、登录、Secure/HttpOnly Cookie、续期和退出。
+
+发布编号例如 `123456789-1-a1b2c3d4e5f6`，依次为 Run ID、attempt、SHA 前 12 位。保存文件与包内结构：
+
+```text
+123456789-1-a1b2c3d4e5f6.tar.gz
+123456789-1-a1b2c3d4e5f6.sha256
+123456789-1-a1b2c3d4e5f6.json
+
+# 归档内：
+release.json
+apps/api/{package.json,dist,migrations,node_modules}
+apps/web/dist/{index.html,assets,version.json}
+```
+
+来源校验拒绝 PR、其他分支、外部仓库和失败任务。默认部署排队后还会核对 master SHA，避免旧自动任务覆盖新提交。指定 Run/标签是明确选择，可部署历史版本。
+
+服务器用 flock 串行化发布/回滚，GitHub 共用 automatic-production 并发组。依次校验、安全解包、链接共享配置、备份数据库与配置、迁移、保留旧 hash 静态资源、切换 current、重启 API，检查 API 和 Nginx 前端 release/commit；工作流再从公网验证两者。
+
+新版本保存归档指纹，同编号不同内容会拒绝；迁移失败可重试同一包。每次尝试独立备份，不覆盖之前文件。无指纹的老版本可以回滚；部署旧包遇到目录冲突时，应重跑 CI 生成新编号。
+
+切换后服务器健康检查失败会恢复之前代码，任务仍失败。公网检查失败也报告失败，但不盲目再次切换，应排查网络、证书或代理。迁移不自动撤销，已经执行的 SQL 文件不能修改。
+
+单实例 API 有短暂重启窗口，内存验证码也会失效。零停机需要第二个实例和就绪后流量切换，属于后续架构工作。
+
+## 9. 排查与首次验收
+
+| 现象                   | 处理                                                     |
+| ---------------------- | -------------------------------------------------------- |
+| 未提交或与远端不同     | 提交并合并；明确操作远端时加 --remote                    |
+| workflow 404           | 确认已合并到默认分支，令牌授权正确仓库                   |
+| 没有成功包或已过期     | 运行 ci:run，或部署已保存的 Release                      |
+| 自动部署 skipped       | 检查 push/master、DEPLOY_ENABLED/AUTO_DEPLOY 和最新 SHA  |
+| 手动部署未启用         | 配置 Secrets 和仓库 DEPLOY_ENABLED=true                  |
+| Environment 等待       | 检查审核和允许部署分支                                   |
+| 主机公钥失败           | 核验公钥、端口后更新 Secret，不关闭校验                  |
+| SSH 拒绝或超时         | 检查公钥、用户名、端口、百度云安全组                     |
+| status/previous 不支持 | bootstrap 升级服务器发布命令                             |
+| 迁移失败               | 查看连接、迁移校验和日志；切换前不会替换服务             |
+| 健康检查失败           | 查看恢复结果和 journalctl -u automatic-api -n 100        |
+| API/前端版本不同       | 检查 current、release.env、Nginx、域名及缓存             |
+| ci:local 无法启动      | 启动 Docker，检查镜像/依赖网络，使用 Python 3.12/Node 22 |
+| 锁文件或补丁失败       | 修正并一起提交，不自动 reset 子模块                      |
+
+首次验收：PR 的 Verify and package 成功；master CI 和 Deploy production 成功；公网两个接口返回相同 release/commit；页面、登录和文章保存可用；Production status 正确列版本；必要时验证回滚且数据保留。
 
 ```powershell
 curl.exe https://180.76.248.209/api/health
 curl.exe https://180.76.248.209/version.json
+pnpm deploy:status
 ```
 
-CI/CD 发布后的 API 响应会包含 `release` 和 `commit`，前端 `version.json` 提供相同信息。初次手工部署的老版本没有这两个字段。
+原有每日备份在 `/var/backups/automatic`，部署前备份独立保存。旧 release、incoming 和静态资源不自动删除，应监控磁盘，保留当前、上一版及需要回滚的版本。数据库文章进入备份，浏览器尚未上传的修改仍需保留；备份应另存独立存储。
 
-## 10. 如何回滚
+## 10. 文件入口和官方资料
 
-回滚前，确认目标代码与当前数据库兼容。
+2026-10-07 本地隔离验证通过：Ubuntu 24.04 / Node.js 22 / PostgreSQL 17 下运行完整 `pnpm ci:local`，39 项 API、30 项前端、14 项 CI/CD 测试全部成功，无跳过；类型检查、生产构建、ShellCheck、发布/回滚恢复测试及实际发布包启动验证成功。五个工作流也通过 Actionlint 静态检查。这些结果不替代首次真实 GitHub/服务器上线验收。
 
-查看服务器版本：
+| 文件                                              | 用途                         |
+| ------------------------------------------------- | ---------------------------- |
+| .github/workflows/ci-cd.yml                       | 验证、构建、打包             |
+| .github/workflows/deploy.yml                      | 自动/手动部署及复用          |
+| .github/workflows/release.yml                     | 创建版本，可选部署           |
+| .github/workflows/rollback.yml                    | 回滚                         |
+| .github/workflows/status.yml                      | 查询生产版本                 |
+| scripts/cicd.mjs                                  | 本地一键命令，等待并报告结果 |
+| scripts/lib/                                      | GitHub API、来源和归档校验   |
+| ops/automatic-release.sh                          | 服务器发布、状态、回滚       |
+| ops/bootstrap-cicd.sh                             | 安装/升级发布命令            |
+| scripts/test-linux-ci.mjs、ops/verify-linux-ci.sh | 本地 Docker 完整验证         |
 
-```bash
-ls -1 /srv/automatic/releases
-readlink -f /srv/automatic/current
-cat /srv/automatic/shared/previous-release
-cat /srv/automatic/shared/deployment-history.log
-```
+- [workflow_run：CI 完成后触发部署](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
+- [下载指定工作流的 artifact](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)
+- [API 触发工作流](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
+- [创建 GitHub Release](https://docs.github.com/en/rest/releases/releases#create-a-release)
+- [Environments 与保护规则](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
+- [Actions Secrets 配置](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 
-在 **Actions → Rollback production → Run workflow** 选择 `master`，填写上述目录中的发布编号。回滚 job 与正常发布共用部署锁、production 环境和 SSH 凭据。
-
-也可使用专用部署账号：
-
-```powershell
-ssh -i "$env:USERPROFILE\.ssh\automatic-github-actions" automatic-deploy@180.76.248.209 "sudo -n /usr/local/sbin/automatic-release rollback RELEASE_ID"
-```
-
-回滚只切换代码，**不会自动恢复数据库**。自动恢复旧备份可能丢失发布后的新数据，所以没有放进自动回滚脚本。
-
-数据库迁移遵守渐进兼容规则：先增加新字段或新表，代码逐步迁移，确认不再需要旧结构后再单独删除。不要在一次发布中直接删除旧版本仍依赖的字段。多文件迁移可能已有前面的文件成功提交，即使后续迁移失败，也不能假设数据库完全没变。
-
-如果是数据损坏或不兼容结构，进入维护流程，先做当前备份，评估恢复点与数据损失，再按 `docs/deployment.md` 恢复。不要用删除 Docker 数据卷来修复部署。
-
-## 11. 维护和排查
-
-| 现象                          | 处理                                                                          |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| 子模块无法检出                | 确认 `.gitmodules` 已提交、上游提交仍可访问                                   |
-| 补丁应用失败                  | 检查上游版本和本地修改；不要自动 reset 或忽略冲突                             |
-| frozen-lockfile 失败          | 本地修正依赖与锁文件，一起提交                                                |
-| deploy job 被 skipped         | 检查是否来自 `master`、是否是 PR、仓库级 `DEPLOY_ENABLED` 是否为字符串 `true` |
-| Environment 等待              | 检查审核要求和允许发布的分支                                                  |
-| Host key verification failed  | 核实服务器是否更换主机密钥，再更新 Secret；不要关闭检查                       |
-| SSH 连接超时                  | 检查百度云安全组 22 入站；GitHub 托管 runner 的来源地址不固定                 |
-| Permission denied (publickey) | 检查专用用户名、公私钥对应和 authorized_keys 权限                             |
-| 发布包校验失败                | 检查是否上传了同一次构建的包与摘要，不手动编辑它们                            |
-| 数据库迁移失败                | 查看 Actions 输出、数据库连接和迁移文件校验                                   |
-| 切换后健康检查失败            | 查看回滚结果及 `journalctl -u automatic-api -n 100`                           |
-| API 与前端 commit 不一致      | 检查 current 指针、release.env、服务重启和 Nginx 根目录                       |
-| 邮箱注册收不到验证码          | 更新服务器 Resend 配置；CI/CD 不会修复无效邮件密钥                            |
-
-服务器当前有每日数据库与配置备份，目录 `/var/backups/automatic`；每日备份保留 30 天，部署前备份独立保留。发布包、旧 release 和共享 hash 静态资源暂不自动删除，避免误删回滚所需文件，但需要监控 40 GB 磁盘并定期清理。清理前保留当前、上一个和需要回滚的版本，静态资源还要考虑用户已打开的页面。
-
-这些备份仍在同一台服务器，应另行将加密备份上传到独立存储，才能应对磁盘或服务器丢失。文章草稿目前主要在浏览器里，不在服务器数据库备份内。
-
-## 12. 本次完成程度与首次上线验收
-
-2026-10-03 已在当前电脑与服务器验证：项目格式、类型和生产构建；8 项前端测试；34 项 Linux 后端测试（包含 PostgreSQL、没有跳过）；发布包独立运行；损坏摘要与非法版本参数被拒绝；专用账号无法运行通用 sudo 命令；实际发布、回滚旧版本、再切回新版本；隔离服务启动失败后的自动代码恢复。
-
-当前服务器使用 `validation-20261003T030323Z-f14941af4175` 验证版本。包内 `source` 为 `working-tree`，表示它包含本地尚未提交的修改，`commit` 是工作区的基础提交，并不表示这些修改已经提交到 GitHub。正常 GitHub 发布会使用 Actions 对应的完整提交 SHA，且 `source` 为 `git`。
-
-工作流、发布包、服务器发布与回滚脚本可以在本地和服务器验证。GitHub Secrets 是账号级设置，需要由你在控制台录入；当前工作区也需要你审查后提交。没有这些步骤，不应将“写好了 CI/CD 文件”当作“GitHub 已自动发布成功”。
-
-首次 GitHub 发布的验收标准：
-
-- PR 的 `Verify and package` 成功，数据库集成测试没有跳过。
-- 合并后的同一次 workflow 中 check 和 deploy 都成功。
-- API 与 `version.json` 返回 Actions 对应的 release 和完整提交 SHA。
-- 公网 HTTPS 可访问，管理员登录后刷新仍保持登录，编辑器加载正常。
-- Actions 的回滚任务能切换到保留版本，数据库内容仍在。
-
-## 13. 官方资料
-
-- [GitHub 部署与并发控制](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)
-- [GitHub Environments 与保护规则](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
-- [GitHub Actions Secrets 配置](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
-- [pnpm deploy：独立生产运行目录](https://pnpm.io/cli/deploy)（本项目固定使用 pnpm 9.15.4，较新版本的配置要求可能不同）
+首次提交、GitHub 配置、服务器命令升级后流程才会生效。本地测试通过不等于真实 GitHub 部署已完成。

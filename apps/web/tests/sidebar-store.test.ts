@@ -1,27 +1,30 @@
 import assert from 'node:assert/strict';
-import { beforeEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
+import { ArticleServer, installBrowserStorage } from './helpers/article-server';
 
-const entries = new Map<string, string>();
-const storage = {
-  getItem: (key: string) => entries.get(key) ?? null,
-  setItem: (key: string, value: string) => entries.set(key, value),
-  removeItem: (key: string) => entries.delete(key),
-};
-Object.defineProperty(globalThis, 'localStorage', { value: storage });
-Object.defineProperty(globalThis, 'window', { value: { localStorage: storage } });
+const { entries, storage } = installBrowserStorage();
+let server = new ArticleServer();
+globalThis.fetch = (input, init) => server.fetch(input, init);
+const { login } = await import('../src/services/auth-api');
 const {
   useDocsStore: store,
-  loadDocsForUser,
+  loadDocsForUser: loadWorkspace,
   clearDocsFromMemory,
 } = await import('../src/store/docsStore');
+async function loadDocsForUser(owner: string) {
+  await login({ email: owner, password: 'unused' });
+  await loadWorkspace(owner);
+}
 const { buildPageTree, filterPageTree } = await import('../src/components/sidebar/page-tree-data');
 
 beforeEach(async () => {
   clearDocsFromMemory();
   entries.clear();
+  server = new ArticleServer();
   await loadDocsForUser('test-owner');
   store.setState({ docs: [], currentDocId: '', publishRecords: [] });
 });
+afterEach(() => clearDocsFromMemory());
 
 test('deleting a branch preserves contents and restoring it restores the hierarchy', () => {
   const root = store.getState().createDoc();
@@ -109,7 +112,7 @@ test('legacy workspaces without publication records do not inherit another accou
     publishId: 'old',
     docId: 'doc',
     title: 'Other account',
-    submittedAt: '',
+    submittedAt: new Date().toISOString(),
     state: 'publishing',
   });
   storage.setItem(
@@ -127,7 +130,7 @@ test('late publication responses cannot write into a newly signed-in account', a
       publishId: 'late',
       docId: 'doc',
       title: 'Previous account',
-      submittedAt: '',
+      submittedAt: new Date().toISOString(),
       state: 'published',
     },
     'test-owner',

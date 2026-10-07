@@ -152,11 +152,19 @@ function refreshSession(): Promise<AuthResponse> {
  * 共用一次 Refresh 请求，并且每个原请求最多重试一次。
  */
 export async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const generation = sessionGeneration;
+  const verifySession = () => {
+    if (generation !== sessionGeneration) {
+      throw new AuthApiError(401, 'SESSION_INVALIDATED', 'The local session was invalidated');
+    }
+    init.signal?.throwIfAborted();
+  };
   if (!accessToken) {
     await refreshSession();
   }
 
   const send = () => {
+    verifySession();
     const headers = new Headers(init.headers);
     if (accessToken) {
       headers.set('authorization', `Bearer ${accessToken}`);
@@ -168,6 +176,7 @@ export async function authenticatedRequest<T>(path: string, init: RequestInit = 
   try {
     return await send();
   } catch (error) {
+    verifySession();
     if (!(error instanceof AuthApiError) || error.status !== 401) {
       throw error;
     }

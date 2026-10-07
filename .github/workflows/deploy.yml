@@ -1,0 +1,156 @@
+name: Deploy production
+run-name: Deploy ${{ inputs.source || 'auto' }} ${{ inputs.reference || github.event.workflow_run.head_sha }} ${{ inputs.note }}
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 发布包来源（latest = master 当前提交的成功 CI）
+        type: choice
+        options: [latest, run, tag]
+        default: latest
+      reference:
+        description: run 填 CI Run ID；tag 填 v1.2.3；latest 留空
+        required: false
+        type: string
+      note:
+        description: 操作备注（可选）
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        default: latest
+      reference:
+        type: string
+        default: ''
+      note:
+        type: string
+        default: ''
+permissions:
+  contents: read
+  actions: read
+jobs:
+  resolve:
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        vars.DEPLOY_ENABLED == 'true' && vars.AUTO_DEPLOY != 'false'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      skip: ${{ steps.bundle.outputs.skip }}
+      kind: ${{ steps.bundle.outputs.kind }}
+      release: ${{ steps.bundle.outputs.release }}
+      commit: ${{ steps.bundle.outputs.commit }}
+      run_id: ${{ steps.bundle.outputs.run_id }}
+      artifact: ${{ steps.bundle.outputs.artifact }}
+      archive_id: ${{ steps.bundle.outputs.archive_id }}
+      checksum_id: ${{ steps.bundle.outputs.checksum_id }}
+      manifest_id: ${{ steps.bundle.outputs.manifest_id }}
+      latest: ${{ steps.bundle.outputs.latest }}
+    steps:
+      - name: Require configured deployments
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+        run: test "$DEPLOY_ENABLED" = true || { echo '请先配置 production Secrets 与仓库变量 DEPLOY_ENABLED=true'; exit 1; }
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: master
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+      - name: Resolve and validate build provenance
+        id: bundle
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE: ${{ inputs.source || 'latest' }}
+          RELEASE_REFERENCE: ${{ inputs.reference }}
+        run: node scripts/resolve-release.mjs
+  deploy:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: automatic-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL || 'https://180.76.248.209' }}
+    env:
+      RELEASE_ID: ${{ needs.resolve.outputs.release }}
+      RELEASE_COMMIT: ${{ needs.resolve.outputs.commit }}
+      DEPLOY_URL: ${{ vars.DEPLOY_URL || 'https://180.76.248.209' }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: master
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        if: needs.resolve.outputs.kind == 'artifact'
+        with:
+          name: ${{ needs.resolve.outputs.artifact }}
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: artifact
+      - name: Download permanent release assets
+        if: needs.resolve.outputs.kind == 'release'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARCHIVE_ID: ${{ needs.resolve.outputs.archive_id }}
+          CHECKSUM_ID: ${{ needs.resolve.outputs.checksum_id }}
+          MANIFEST_ID: ${{ needs.resolve.outputs.manifest_id }}
+        run: node scripts/fetch-release-assets.mjs
+      - name: Check package checksum and expected source
+        run: |
+          node --input-type=module - <<'NODE'
+          import { verifiedBundle } from './scripts/lib/bundle.mjs';
+          verifiedBundle('artifact', { release: process.env.RELEASE_ID, commit: process.env.RELEASE_COMMIT });
+          NODE
+      - name: Check queued latest deployment is still current
+        id: current
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LATEST: ${{ needs.resolve.outputs.latest }}
+          AUTOMATIC_DEPLOY: ${{ github.event_name == 'workflow_run' }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { createGitHubClient, githubOutput, summary } from './scripts/lib/github.mjs';
+          import { mainCommit } from './scripts/lib/releases.mjs';
+          const stale = process.env.LATEST === 'true' && await mainCommit(createGitHubClient()) !== process.env.RELEASE_COMMIT;
+          if (stale && process.env.AUTOMATIC_DEPLOY !== 'true') throw new Error('master 已更新，请重新部署最新成功 CI。服务器尚未切换。');
+          githubOutput({ skip: stale });
+          if (stale) summary('部署排队期间 master 已更新，本次未切换服务器，请部署最新成功 CI。');
+          NODE
+      - uses: ./.github/actions/prepare-ssh
+        if: steps.current.outputs.skip != 'true'
+        with:
+          private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          host: ${{ vars.DEPLOY_HOST }}
+          port: ${{ vars.DEPLOY_PORT || '22' }}
+      - name: Upload and activate the verified package
+        if: steps.current.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]]
+          scp "artifact/$RELEASE_ID.tar.gz" "artifact/$RELEASE_ID.sha256" automatic-production:/srv/automatic/incoming/
+          ssh automatic-production "sudo -n /usr/local/sbin/automatic-release deploy $RELEASE_ID"
+      - name: Verify public API and frontend identity
+        if: steps.current.outputs.skip != 'true'
+        run: node scripts/verify-deployment.mjs
+      - name: Remove private key
+        if: always()
+        run: rm -f ~/.ssh/automatic_deploy

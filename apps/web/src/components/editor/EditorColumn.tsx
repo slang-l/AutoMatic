@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useDocsStore } from '../../store/docsStore';
+import { getDocsOwnerId, useDocsStore } from '../../store/docsStore';
 import type { AppDoc, NormalizedBlock } from '../../types/document';
 import { Toast, type ToastState } from '../common/Toast';
 import type { BrandAsset } from '../../services/brand-assets-api';
@@ -33,6 +33,8 @@ export function EditorColumn({
 }: EditorColumnProps) {
   const renameDoc = useDocsStore((state) => state.renameDoc);
   const updateDocBlocks = useDocsStore((state) => state.updateDocBlocks);
+  const editorGeneration = useDocsStore((state) => state.editorGeneration);
+  const ownerId = getDocsOwnerId();
   const editorRef = useRef<BlockSuiteEditorHandle>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const [toolbarState, setToolbarState] = useState<EditorToolbarState>({});
@@ -45,16 +47,26 @@ export function EditorColumn({
 
   const handleBlocksChange = useCallback(
     (blocks: NormalizedBlock[]) => {
+      if (
+        getDocsOwnerId() !== ownerId ||
+        useDocsStore.getState().editorGeneration !== editorGeneration
+      )
+        return;
       updateDocBlocks(doc.id, blocks);
     },
-    [doc.id, updateDocBlocks],
+    [doc.id, ownerId, editorGeneration, updateDocBlocks],
   );
 
   const handleTitleChange = useCallback(
     (title: string) => {
+      if (
+        getDocsOwnerId() !== ownerId ||
+        useDocsStore.getState().editorGeneration !== editorGeneration
+      )
+        return;
       renameDoc(doc.id, title);
     },
-    [doc.id, renameDoc],
+    [doc.id, ownerId, editorGeneration, renameDoc],
   );
 
   const handleInsertComponent = useCallback((component: ContentComponentDefinition) => {
@@ -97,6 +109,7 @@ export function EditorColumn({
         onOpenComponents={() => onComponentLibraryOpenChange(true)}
       />
       <BlockSuiteEditor
+        key={`${ownerId}:${doc.id}:${editorGeneration}`}
         ref={editorRef}
         author={doc.author}
         blocks={doc.blocks}

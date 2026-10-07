@@ -23,10 +23,19 @@ import {
 import type { AuthUser } from '../../services/auth-api';
 import { useDocsStore } from '../../store/docsStore';
 import { EditorColumn } from '../editor/EditorColumn';
+import { ArticleSyncStatus } from '../editor/ArticleSyncStatus';
 import { WeChatPreview } from '../preview/WeChatPreview';
 import { SettingsModal } from '../settings';
 import { WorkspacePanel } from '../sidebar/WorkspacePanel';
-import { viewLabels, type WorkspaceView } from '../sidebar/DocumentSidebar';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  articlePath,
+  paths,
+  viewLabels,
+  type WorkspaceView,
+  type EditorPanel,
+} from '../../routing/routes';
+import { RouteErrorPage } from '../../routing/RouteErrorPage';
 import { DocumentSidebar } from '../sidebar/DocumentSidebar';
 
 type ResizeEdge = 'sidebar' | 'preview';
@@ -50,21 +59,65 @@ const DEFAULT_SIDEBAR_WIDTH = 240;
 const DEFAULT_PREVIEW_WIDTH = 388;
 
 interface AppLayoutProps {
+  view: WorkspaceView;
+  panel?: EditorPanel;
   isSigningOut: boolean;
   onSignOut: () => void | Promise<void>;
   user: AuthUser;
 }
 
-export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
+export function AppLayout({ view, panel, isSigningOut, onSignOut, user }: AppLayoutProps) {
   const allDocs = useDocsStore((state) => state.docs);
   const docs = allDocs.filter((doc) => !doc.deletedAt);
-  const [view, setView] = useState<WorkspaceView>('editor');
-  const openEditor = () => {
-    setView('editor');
+  const navigate = useNavigate();
+  const { articleId } = useParams();
+  const [search, setSearch] = useSearchParams();
+  const currentDocId = useDocsStore((state) => state.currentDocId);
+  const currentDoc =
+    view === 'editor'
+      ? docs.find((doc) => doc.id === articleId)
+      : (docs.find((doc) => doc.id === currentDocId) ?? docs[0]);
+  const openEditor = (id = useDocsStore.getState().currentDocId) => {
+    navigate(id ? articlePath(id) : paths.editor);
     if (window.matchMedia('(max-width: 760px)').matches) setSidebarOpen(false);
   };
-  const currentDocId = useDocsStore((state) => state.currentDocId);
-  const currentDoc = docs.find((doc) => doc.id === currentDocId) ?? docs[0];
+  const navigateView = (next: WorkspaceView) => {
+    if (next === 'editor') openEditor();
+    else navigate(paths[next]);
+  };
+  const brandAssetLibraryOpen = panel === 'assets';
+  const componentLibraryOpen = panel === 'components';
+  const setEditorPanel = (next?: EditorPanel) => {
+    const id = view === 'editor' ? articleId : useDocsStore.getState().currentDocId;
+    if (id) navigate(articlePath(id, next));
+  };
+  const setBrandAssetLibraryOpen = (open: boolean) => {
+    if (open) setEditorPanel('assets');
+    else if (panel === 'assets') setEditorPanel();
+  };
+  const setComponentLibraryOpen = (open: boolean) => {
+    if (open) setEditorPanel('components');
+    else if (panel === 'components') setEditorPanel();
+  };
+  const settingsOpen = search.get('panel') === 'settings';
+  const setSettingsOpen = (open: boolean) => {
+    const next = new URLSearchParams(search);
+    if (open) next.set('panel', 'settings');
+    else next.delete('panel');
+    setSearch(next);
+  };
+  const visitedArticle = useRef<string>();
+  useEffect(() => {
+    if (view !== 'editor' || !articleId) return;
+    if (currentDoc) {
+      visitedArticle.current = articleId;
+      useDocsStore.getState().setCurrentDocId(articleId);
+    }
+  }, [view, articleId, currentDoc]);
+  useEffect(() => {
+    document.title =
+      (view === 'editor' ? currentDoc?.title || '文章创作' : viewLabels[view]) + ' · AutoMatic';
+  }, [view, currentDoc?.title]);
   const createDoc = useDocsStore((state) => state.createDoc);
   const shellRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -76,9 +129,6 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
   } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
-  const [componentLibraryOpen, setComponentLibraryOpen] = useState(false);
-  const [brandAssetLibraryOpen, setBrandAssetLibraryOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [activeResize, setActiveResize] = useState<ResizeEdge | null>(null);
@@ -118,7 +168,7 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
 
     window.addEventListener('keydown', closeOverlay);
     return () => window.removeEventListener('keydown', closeOverlay);
-  }, []);
+  }, [panel]);
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(Math.round(panelWidths.sidebar)));
@@ -251,18 +301,20 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
     [resizeByDelta],
   );
 
-  if (!currentDoc) {
-    return null;
+  if (view === 'editor' && !currentDoc && visitedArticle.current === articleId) {
+    return <Navigate to={currentDocId ? articlePath(currentDocId) : paths.home} replace />;
   }
 
   const displayTitle =
-    view === 'editor' ? currentDoc.title.trim() || '未命名文章' : viewLabels[view];
+    view === 'editor' ? currentDoc?.title.trim() || '未命名文章' : viewLabels[view];
   const userInitials = getUserInitials(user);
 
   return (
     <>
       <main
         ref={shellRef}
+        {...(isSigningOut ? { inert: '' } : {})}
+        aria-busy={isSigningOut}
         className={`workspace-shell ${darkMode ? 'workspace-dark' : ''} ${activeResize ? 'is-resizing' : ''}`}
       >
         <Button
@@ -284,15 +336,13 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
             view={view}
             assetsOpen={brandAssetLibraryOpen}
             onNavigate={(next) => {
-              setView(next);
+              navigateView(next);
               if (window.matchMedia('(max-width: 760px)').matches) setSidebarOpen(false);
             }}
             onOpenAssets={() => {
-              openEditor();
-              setBrandAssetLibraryOpen(true);
-              setComponentLibraryOpen(false);
+              setEditorPanel('assets');
             }}
-            currentDocId={currentDoc.id}
+            currentDocId={view === 'editor' ? (articleId ?? '') : currentDocId}
             onSearchOpen={() => setSidebarOpen(true)}
             docs={docs}
             onDocumentOpen={openEditor}
@@ -340,6 +390,7 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
             </div>
 
             <div className="workspace-actions">
+              <ArticleSyncStatus />
               <Button
                 variant="ghost"
                 size="icon"
@@ -350,9 +401,7 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 aria-label="组件库"
                 title="组件库"
                 onClick={() => {
-                  openEditor();
-                  setBrandAssetLibraryOpen(false);
-                  setComponentLibraryOpen(true);
+                  setEditorPanel('components');
                 }}
               >
                 <LibraryBig size={15} />
@@ -367,9 +416,7 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                 aria-label="素材库"
                 title="素材库"
                 onClick={() => {
-                  openEditor();
-                  setComponentLibraryOpen(false);
-                  setBrandAssetLibraryOpen(true);
+                  setEditorPanel('assets');
                 }}
               >
                 <Images size={15} />
@@ -440,8 +487,7 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        createDoc();
-                        openEditor();
+                        openEditor(createDoc());
                         setAccountMenuOpen(false);
                       }}
                     >
@@ -479,69 +525,74 @@ export function AppLayout({ isSigningOut, onSignOut, user }: AppLayoutProps) {
             </div>
           </header>
           {view !== 'editor' && (
-            <WorkspacePanel view={view} onOpenDocument={openEditor} onNavigate={setView} />
+            <WorkspacePanel view={view} onOpenDocument={openEditor} onNavigate={navigateView} />
           )}
-          <div
-            className="workspace-content"
-            style={view !== 'editor' ? { display: 'none' } : undefined}
-          >
-            <div className="workspace-editor-area">
-              <EditorColumn
-                brandAssetLibraryOpen={brandAssetLibraryOpen}
-                componentLibraryOpen={componentLibraryOpen}
-                doc={currentDoc}
-                onBrandAssetLibraryOpenChange={setBrandAssetLibraryOpen}
-                onComponentLibraryOpenChange={setComponentLibraryOpen}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="workspace-help-button"
-                type="button"
-                onClick={() => setView('start')}
-                aria-label="帮助"
-                title="帮助"
-              >
-                ?
-              </Button>
+          {view === 'editor' && !currentDoc && <RouteErrorPage article />}
+          {currentDoc && (
+            <div
+              className="workspace-content"
+              style={view !== 'editor' ? { display: 'none' } : undefined}
+            >
+              <div className="workspace-editor-area">
+                <EditorColumn
+                  brandAssetLibraryOpen={brandAssetLibraryOpen}
+                  componentLibraryOpen={componentLibraryOpen}
+                  doc={currentDoc}
+                  onBrandAssetLibraryOpenChange={setBrandAssetLibraryOpen}
+                  onComponentLibraryOpenChange={setComponentLibraryOpen}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="workspace-help-button"
+                  type="button"
+                  onClick={() => navigateView('start')}
+                  aria-label="帮助"
+                  title="帮助"
+                >
+                  ?
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </section>
 
-        <div
-          className="workspace-preview-layer"
-          style={view !== 'editor' ? { display: 'none' } : undefined}
-        >
-          {previewOpen ? (
-            <>
-              <ResizeHandle
-                active={activeResize === 'preview'}
-                edge="preview"
-                label="调整编辑区和预览区宽度"
-                value={panelWidths.preview}
-                min={MIN_PREVIEW_WIDTH}
-                max={MAX_PREVIEW_WIDTH}
-                onKeyDown={resizeWithKeyboard}
-                onPointerCancel={endResize}
-                onPointerDown={beginResize}
-                onPointerMove={updateResize}
-                onPointerUp={endResize}
-              />
-              <section
-                id="workspace-preview-pane"
-                className="workspace-preview-pane"
-                aria-label="文章分享预览"
-                style={{ width: panelWidths.preview, flexBasis: panelWidths.preview }}
-              >
-                <WeChatPreview
-                  doc={currentDoc}
-                  userId={user.id}
-                  onClose={() => setPreviewOpen(false)}
+        {currentDoc && (
+          <div
+            className="workspace-preview-layer"
+            style={view !== 'editor' ? { display: 'none' } : undefined}
+          >
+            {previewOpen ? (
+              <>
+                <ResizeHandle
+                  active={activeResize === 'preview'}
+                  edge="preview"
+                  label="调整编辑区和预览区宽度"
+                  value={panelWidths.preview}
+                  min={MIN_PREVIEW_WIDTH}
+                  max={MAX_PREVIEW_WIDTH}
+                  onKeyDown={resizeWithKeyboard}
+                  onPointerCancel={endResize}
+                  onPointerDown={beginResize}
+                  onPointerMove={updateResize}
+                  onPointerUp={endResize}
                 />
-              </section>
-            </>
-          ) : null}
-        </div>
+                <section
+                  id="workspace-preview-pane"
+                  className="workspace-preview-pane"
+                  aria-label="文章分享预览"
+                  style={{ width: panelWidths.preview, flexBasis: panelWidths.preview }}
+                >
+                  <WeChatPreview
+                    doc={currentDoc}
+                    userId={user.id}
+                    onClose={() => setPreviewOpen(false)}
+                  />
+                </section>
+              </>
+            ) : null}
+          </div>
+        )}
       </main>
 
       <SettingsModal

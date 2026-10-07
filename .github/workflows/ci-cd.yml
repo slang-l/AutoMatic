@@ -1,10 +1,16 @@
-name: CI and Deploy
+name: CI
+run-name: CI ${{ github.ref_name }} ${{ inputs.note }}
 on:
   pull_request:
     branches: [master]
   push:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      note:
+        description: 操作备注（可选）
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -28,6 +34,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       COLLABORATION_TEST_DATABASE_URL: postgresql://automatic_ci:ci-only-password@127.0.0.1:5432/automatic_ci
+      ARTICLE_TEST_DATABASE_URL: postgresql://automatic_ci:ci-only-password@127.0.0.1:5432/automatic_ci
       CI_TEST_DATABASE_URL: postgresql://automatic_ci:ci-only-password@127.0.0.1:5432/automatic_ci
       NODE_OPTIONS: --max-old-space-size=4096
     outputs:
@@ -50,13 +57,17 @@ jobs:
           shellcheck ops/*.sh
           pnpm format:check
       - name: Verify automatic recovery with an isolated service
-        run: sudo bash ops/test-release-recovery.sh
+        run: |
+          sudo bash ops/test-release-recovery.sh
+          sudo bash ops/test-release-operations.sh
       - name: Typecheck, tests including PostgreSQL, and production builds
         run: pnpm check
       - name: Release identity
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         id: version
         run: echo "release=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
       - name: Package once, verify the actual runtime package
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         env:
           RELEASE_ID: ${{ steps.version.outputs.release }}
         run: |
@@ -65,49 +76,19 @@ jobs:
           tar -xzf ".tmp/artifacts/$RELEASE_ID.tar.gz" -C .tmp/smoke-release
           node scripts/smoke-release.mjs .tmp/smoke-release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         with:
           name: release-${{ steps.version.outputs.release }}
           path: .tmp/artifacts/*
           include-hidden-files: true
           if-no-files-found: error
-          retention-days: 14
-  deploy:
-    name: Deploy production
-    needs: check
-    if: >-
-      github.event_name != 'pull_request' && github.ref == 'refs/heads/master' &&
-      github.repository == 'slang-l/AutoMatic' && vars.DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment:
-      name: production
-      url: https://180.76.248.209
-    concurrency:
-      group: automatic-production
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: release-${{ needs.check.outputs.release }}
-          path: artifact
-      - uses: ./.github/actions/prepare-ssh
-        with:
-          private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-          known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          host: ${{ vars.DEPLOY_HOST }}
-      - name: Upload and activate the verified artifact
+          retention-days: 30
+      - name: Publish CI summary
+        if: success()
         env:
-          RELEASE_ID: ${{ needs.check.outputs.release }}
+          RELEASE_ID: ${{ steps.version.outputs.release }}
         run: |
-          set -euo pipefail
-          [[ "$RELEASE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]]
-          scp "artifact/$RELEASE_ID.tar.gz" "artifact/$RELEASE_ID.sha256" automatic-production:/srv/automatic/incoming/
-          ssh automatic-production "sudo -n /usr/local/sbin/automatic-release deploy $RELEASE_ID"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 https://180.76.248.209/api/health
-          echo "Deployed $RELEASE_ID" >> "$GITHUB_STEP_SUMMARY"
-      - name: Remove private key
-        if: always()
-        run: rm -f ~/.ssh/automatic_deploy
+          echo '类型、测试、PostgreSQL 和生产构建验证通过。' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$RELEASE_ID" ]]; then
+            echo "已验证发布包：\`$RELEASE_ID\`，保留 30 天。可通过 Deploy production 直接部署，或通过 Publish release 永久保存。" >> "$GITHUB_STEP_SUMMARY"
+          fi

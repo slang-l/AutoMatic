@@ -43,11 +43,12 @@ node --input-type=module - "$stage" "$release" "$commit" <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
 const [stage, release, commit] = process.argv.slice(2);
-const metadata = { schema: 1, release, commit, source: process.env.BUILD_SOURCE || 'git', builtAt: new Date().toISOString(), nodeMajor: 22, platform: 'linux', arch: 'x64' };
+const metadata = { schema: 1, release, commit, source: process.env.BUILD_SOURCE || 'git', builtAt: new Date().toISOString(), nodeMajor: 22, platform: 'linux', arch: 'x64', buildRunId: process.env.GITHUB_RUN_ID || null, buildAttempt: process.env.GITHUB_RUN_ATTEMPT || null, repository: process.env.GITHUB_REPOSITORY || null };
 fs.writeFileSync(path.join(stage, 'release.json'), JSON.stringify(metadata, null, 2) + '\n');
 fs.writeFileSync(path.join(stage, 'apps/web/dist/version.json'), JSON.stringify(metadata) + '\n');
 NODE
 mkdir -p .tmp/artifacts
 tar --hard-dereference -czf ".tmp/artifacts/$release.tar.gz" -C "$stage" apps release.json
 sha256sum ".tmp/artifacts/$release.tar.gz" | cut -d ' ' -f 1 > ".tmp/artifacts/$release.sha256"
+cp "$stage/release.json" ".tmp/artifacts/$release.json"
 echo "Packaged $release"

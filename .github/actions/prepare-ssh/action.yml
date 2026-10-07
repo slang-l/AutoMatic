@@ -9,7 +9,11 @@ inputs:
     description: Verified OpenSSH known_hosts contents
   host:
     required: true
-    description: Server IPv4 address
+    description: Server IPv4 address or DNS name
+  port:
+    required: false
+    default: '22'
+    description: Server SSH port
 runs:
   using: composite
   steps:
@@ -18,9 +22,11 @@ runs:
         DEPLOY_KEY: ${{ inputs.private-key }}
         KNOWN_HOSTS: ${{ inputs.known-hosts }}
         DEPLOY_HOST: ${{ inputs.host }}
+        DEPLOY_PORT: ${{ inputs.port }}
       run: |
         set -euo pipefail
-        [[ "$DEPLOY_HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$ ]]
+        [[ "$DEPLOY_PORT" =~ ^[1-9][0-9]{0,4}$ && $DEPLOY_PORT -le 65535 ]]
         test -n "$DEPLOY_KEY"
         test -n "$KNOWN_HOSTS"
         install -d -m 700 ~/.ssh
@@ -28,11 +34,14 @@ runs:
         printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/automatic_deploy
         printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
         ssh-keygen -y -f ~/.ssh/automatic_deploy >/dev/null
-        ssh-keygen -F "$DEPLOY_HOST" -f ~/.ssh/known_hosts >/dev/null
+        host_key=$DEPLOY_HOST
+        if [[ "$DEPLOY_PORT" != 22 ]]; then host_key="[$DEPLOY_HOST]:$DEPLOY_PORT"; fi
+        ssh-keygen -F "$host_key" -f ~/.ssh/known_hosts >/dev/null
         cat > ~/.ssh/config <<EOF
         Host automatic-production
           HostName $DEPLOY_HOST
           User automatic-deploy
+          Port $DEPLOY_PORT
           IdentityFile ~/.ssh/automatic_deploy
           IdentitiesOnly yes
           BatchMode yes

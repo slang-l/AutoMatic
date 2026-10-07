@@ -1,5 +1,7 @@
 # AutoMatic
 
+前端路由、文章地址与登录回跳约定见 [docs/routing.md](docs/routing.md)。
+
 协同底层接口与同步协议见 [docs/collaboration.md](docs/collaboration.md)。
 
 云服务器部署、HTTPS、版本更新和备份流程见 [docs/deployment.md](docs/deployment.md)。
@@ -34,7 +36,7 @@ AutoMatic/
 └─ tsconfig.base.json
 ```
 
-目前文章内容仍保存在浏览器 `localStorage`；PostgreSQL 用于账号和登录会话。
+文章正文、目录关系、回收站和发布记录按账号持久化到 PostgreSQL，编辑后自动保存；浏览器 `localStorage` 用作缓存和未上传修改的备份。首次登录会迁移该浏览器已有的本地文章。实现及验证步骤见 [文章持久化说明](docs/article-persistence.md)。
 
 认证模块的设计依据、Token 生命周期、完整接口示例和生产部署注意事项见
 [`docs/authentication.md`](docs/authentication.md)。
@@ -46,6 +48,21 @@ AutoMatic/
 项目使用 Prettier，采用 2 空格缩进、单引号、分号、100 字符行宽和 LF 换行。第三方 BlockSuite 源码、锁文件、构建产物及临时文件不参与格式化。
 
 VS Code 安装工作区推荐的 **Prettier - Code formatter** 扩展后，保存时会自动格式化，也可使用“格式化文档”命令（Windows：`Shift+Alt+F`）。
+
+## 一键验证、发布与部署
+
+完成 [CI/CD 首次配置](docs/ci-cd.md) 后，在项目根目录执行：
+
+```powershell
+pnpm ci:local                 # 隔离 Linux/PostgreSQL 完整验证，不发布
+pnpm deploy:prod              # 部署 master 当前提交的成功 CI 包
+pnpm release 1.2.3            # 保存 v1.2.3 正式版本并部署
+pnpm deploy:prod --tag v1.2.3  # 再次部署已保存版本
+pnpm rollback                 # 回滚上一版代码
+pnpm deploy:status            # 查看当前、上一版和保留版本
+```
+
+也可在 GitHub Actions 点击 Run workflow。默认等待任务结束并报告结果；发布复用已验证包，服务器无需重新构建。配置自动部署后，合并到 `master` 且 CI 成功即可更新线上。回滚只恢复代码，不恢复数据库。
 
 ## 环境要求
 
@@ -268,7 +285,8 @@ Authorization: Bearer <access-token>
 
 `apps/api/src/server.ts` 是实际服务入口，它显式创建并注入 PostgreSQL
 仓库。`buildApp()` 为方便隔离测试而默认创建内存仓库，因此不要在生产入口中省略
-`authRepository`；当前 API 单元/接口测试也不会访问本地 PostgreSQL。
+`authRepository` 或 `articleRepository`。API 接口测试默认使用内存仓库；设置
+`ARTICLE_TEST_DATABASE_URL` / `COLLABORATION_TEST_DATABASE_URL` 后会运行 PostgreSQL 集成测试，CI 已配置这两个变量。
 
 ## 常用命令
 

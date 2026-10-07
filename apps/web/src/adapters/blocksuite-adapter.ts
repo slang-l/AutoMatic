@@ -4,6 +4,7 @@ import type { InlineTextDelta, NormalizedBlock } from '../types/document';
 
 type ParagraphType = 'text' | 'quote' | 'h1' | 'h2' | 'h3';
 type ListType = 'bulleted' | 'numbered' | 'todo';
+type PendingInlineFormat = { id: string; delta: InlineTextDelta[] | undefined };
 
 export interface BlockSuiteDocumentBridge {
   doc: Doc;
@@ -138,14 +139,19 @@ export function insertNormalizedBlocks(
   const anchor = afterBlockId ? getDirectNoteChild(doc, note, afterBlockId) : null;
   let insertionIndex = anchor ? note.children.indexOf(anchor) + 1 : note.children.length;
   const insertedIds: string[] = [];
+  const formats: PendingInlineFormat[] = [];
 
   doc.transact(() => {
     blocks.forEach((block) => {
-      const blockIds = appendNormalizedBlock(doc, note, block, insertionIndex);
+      const blockIds = appendNormalizedBlock(doc, note, block, insertionIndex, formats);
       insertedIds.push(...blockIds);
       insertionIndex += blockIds.length;
     });
   });
+
+  // Models become available after the outer Yjs transaction commits. Applying
+  // formatting inside it silently drops deltas for newly inserted blocks.
+  formats.forEach(({ id, delta }) => applyInlineFormatting(doc, id, delta));
 
   return insertedIds;
 }
@@ -165,6 +171,7 @@ function appendNormalizedBlock(
   note: BlockModel,
   block: NormalizedBlock,
   index?: number,
+  formats?: PendingInlineFormat[],
 ): string[] {
   switch (block.type) {
     case 'heading':
@@ -176,10 +183,11 @@ function appendNormalizedBlock(
           block.text ?? '',
           block.delta,
           index,
+          formats,
         ),
       ];
     case 'quote':
-      return [appendParagraph(doc, note, 'quote', block.text ?? '', block.delta, index)];
+      return [appendParagraph(doc, note, 'quote', block.text ?? '', block.delta, index, formats)];
     case 'code':
       return [
         doc.addBlock(
@@ -214,7 +222,8 @@ function appendNormalizedBlock(
           note.id,
           index === undefined ? undefined : index + itemIndex,
         );
-        applyInlineFormatting(doc, id, delta);
+        if (formats) formats.push({ id, delta });
+        else applyInlineFormatting(doc, id, delta);
         insertedIds.push(id);
       });
       return insertedIds;
@@ -224,7 +233,7 @@ function appendNormalizedBlock(
     case 'image':
       return [appendImage(doc, note, block, index)];
     default:
-      return [appendParagraph(doc, note, 'text', block.text ?? '', block.delta, index)];
+      return [appendParagraph(doc, note, 'text', block.text ?? '', block.delta, index, formats)];
   }
 }
 
@@ -235,6 +244,7 @@ function appendParagraph(
   text: string,
   delta?: InlineTextDelta[],
   index?: number,
+  formats?: PendingInlineFormat[],
 ): string {
   const id = doc.addBlock(
     'affine:paragraph',
@@ -245,7 +255,8 @@ function appendParagraph(
     note.id,
     index,
   );
-  applyInlineFormatting(doc, id, delta);
+  if (formats) formats.push({ id, delta });
+  else applyInlineFormatting(doc, id, delta);
   return id;
 }
 

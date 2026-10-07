@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AuthPage } from './components/auth/AuthPage';
-import { AppLayout } from './components/layout/AppLayout';
+import { AppRoutes } from './routing/AppRoutes';
 import { AuthApiError, bootstrap, logout, type AuthUser } from './services/auth-api';
-import { clearDocsFromMemory, loadDocsForUser } from './store/docsStore';
+import { clearDocsFromMemory, flushDocsToServer, loadDocsForUser } from './store/docsStore';
 
 interface AuthRecoveryFailure {
   message: string;
@@ -59,23 +58,22 @@ export default function App() {
     setIsSigningOut(true);
 
     try {
-      await logout();
-    } catch {
-      // 即使服务端暂时不可用，也必须清除浏览器内的 Access Token 和登录 UI。
-    } finally {
-      // 切断未登录页面与上一位用户文档对象的内存引用；持久化草稿不会被删除。
+      if (!(await flushDocsToServer())) return;
+      try {
+        await logout();
+      } catch {
+        // The articles are already saved; clear the local session even if the
+        // logout endpoint is temporarily unavailable.
+      }
       clearDocsFromMemory();
       setAuth({ status: 'anonymous', user: null });
+    } finally {
       setIsSigningOut(false);
     }
   };
 
   if (auth.status === 'checking') {
     return <AuthCheckingScreen />;
-  }
-
-  if (auth.status === 'anonymous') {
-    return <AuthPage onAuthenticated={handleAuthenticated} />;
   }
 
   if (auth.status === 'error') {
@@ -90,7 +88,14 @@ export default function App() {
     );
   }
 
-  return <AppLayout isSigningOut={isSigningOut} onSignOut={handleSignOut} user={auth.user} />;
+  return (
+    <AppRoutes
+      user={auth.status === 'authenticated' ? auth.user : null}
+      isSigningOut={isSigningOut}
+      onSignOut={handleSignOut}
+      onAuthenticated={handleAuthenticated}
+    />
+  );
 }
 
 function AuthRecoveryErrorScreen({
@@ -142,7 +147,7 @@ function describeRecoveryFailure(error: unknown): AuthRecoveryFailure {
 
     if (error.status >= 500) {
       return {
-        message: '认证服务暂时不可用，请稍后重试。',
+        message: '暂时无法载入工作区，请稍后重试。',
         requestId: error.requestId,
       };
     }

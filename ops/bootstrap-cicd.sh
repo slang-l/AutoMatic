@@ -15,6 +15,12 @@ grep -Fq -- "$key" "$authorized" || printf 'restrict %s\n' "$key" >> "$authorize
 chown automatic-deploy:automatic-deploy "$authorized"
 chmod 600 "$authorized"
 install -o root -g root -m 755 "$script_dir/automatic-release.sh" /usr/local/sbin/automatic-release
+install -d -o root -g root -m 755 /etc/automatic
+if [[ ! -e /etc/automatic/release.conf ]]; then
+  printf '%s\n' 'public_url=https://180.76.248.209' > /etc/automatic/release.conf
+  chown root:root /etc/automatic/release.conf
+  chmod 644 /etc/automatic/release.conf
+fi
 printf '%s\n' 'automatic-deploy ALL=(root) NOPASSWD: /usr/local/sbin/automatic-release' > /etc/sudoers.d/automatic-deploy
 chmod 440 /etc/sudoers.d/automatic-deploy
 visudo -cf /etc/sudoers.d/automatic-deploy

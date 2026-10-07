@@ -10,7 +10,7 @@ import {
 } from '../../store/docsStore';
 import { getWechatPublishStatus } from '../../services/wechat-api';
 import { formatDateTime } from '../../utils/date';
-import { viewLabels, type WorkspaceView } from './DocumentSidebar';
+import { viewLabels, type WorkspaceView } from '../../routing/routes';
 
 const templates = [
   {
@@ -36,7 +36,7 @@ export function WorkspacePanel({
   onNavigate,
 }: {
   view: WorkspaceView;
-  onOpenDocument: () => void;
+  onOpenDocument: (id: string) => void;
   onNavigate: (view: WorkspaceView) => void;
 }) {
   const store = useDocsStore();
@@ -50,12 +50,10 @@ export function WorkspacePanel({
   const active = store.docs.filter((doc) => !doc.deletedAt);
   const trashed = store.docs.filter((doc) => doc.deletedAt);
   const open = (id: string) => {
-    store.setCurrentDocId(id);
-    onOpenDocument();
+    onOpenDocument(id);
   };
   const create = () => {
-    store.createDoc();
-    onOpenDocument();
+    onOpenDocument(store.createDoc());
   };
   const refresh = async (record: PublishRecord) => {
     setBusyId(record.publishId);
@@ -432,7 +430,7 @@ export function WorkspacePanel({
           <h2>AutoMatic Beta</h2>
           <p>文章编辑、模板、素材管理与公众号发布现已可用。</p>
           <p>
-            本账户在此浏览器保存了 {active.length} 篇文章，文档数据约{' '}
+            本账户有 {active.length} 篇文章，保存后可在其他设备登录查看，文档数据约{' '}
             {(new Blob([JSON.stringify(store.docs)]).size / 1024).toFixed(1)} KB。
           </p>
           <p>Pro 方案尚未开放购买，价格与扩容额度将在上线时公布。</p>

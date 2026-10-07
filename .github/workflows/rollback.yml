@@ -1,42 +1,61 @@
 name: Rollback production
+run-name: Rollback ${{ inputs.release || 'previous' }} ${{ inputs.note }}
 on:
   workflow_dispatch:
     inputs:
       release:
-        description: Existing server release directory name; confirm schema compatibility first
-        required: true
+        description: 留空或 previous = 上一版；也可填服务器已有发布编号。仅回滚代码
+        required: false
+        type: string
+        default: previous
+      note:
+        description: 操作备注（可选）
+        required: false
         type: string
 permissions:
   contents: read
 jobs:
   rollback:
-    if: github.ref == 'refs/heads/master' && github.repository == 'slang-l/AutoMatic' && vars.DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
       name: production
-      url: https://180.76.248.209
+      url: ${{ vars.DEPLOY_URL || 'https://180.76.248.209' }}
     concurrency:
       group: automatic-production
       cancel-in-progress: false
     steps:
+      - name: Require configured deployments
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+        run: test "$DEPLOY_ENABLED" = true || { echo 'DEPLOY_ENABLED must be true'; exit 1; }
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
       - uses: ./.github/actions/prepare-ssh
         with:
           private-key: ${{ secrets.DEPLOY_SSH_KEY }}
           known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           host: ${{ vars.DEPLOY_HOST }}
+          port: ${{ vars.DEPLOY_PORT || '22' }}
       - name: Roll back code to an existing version
         env:
-          RELEASE_ID: ${{ inputs.release }}
+          RELEASE_ID: ${{ inputs.release || 'previous' }}
         run: |
           set -euo pipefail
           [[ "$RELEASE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]]
           ssh automatic-production "sudo -n /usr/local/sbin/automatic-release rollback $RELEASE_ID"
-          curl --fail --silent --show-error https://180.76.248.209/api/health
+          ssh automatic-production 'sudo -n /usr/local/sbin/automatic-release status' > server-status.json
           echo "Rolled back code to $RELEASE_ID; database was not restored." >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify rollback through public endpoint
+        env:
+          DEPLOY_URL: ${{ vars.DEPLOY_URL || 'https://180.76.248.209' }}
+          SERVER_STATUS_FILE: server-status.json
+        run: node scripts/verify-deployment.mjs
       - name: Remove private key
         if: always()
         run: rm -f ~/.ssh/automatic_deploy

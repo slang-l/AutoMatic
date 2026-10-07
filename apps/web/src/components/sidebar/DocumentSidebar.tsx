@@ -15,22 +15,13 @@ import { useDocsStore } from '../../store/docsStore';
 import type { AppDoc } from '../../types/document';
 import { PageTree } from './PageTree';
 import { buildPageTree } from './page-tree-data';
-export type WorkspaceView = 'editor' | 'home' | 'start' | 'templates' | 'history' | 'trash' | 'pro';
-export const viewLabels: Record<WorkspaceView, string> = {
-  editor: '文章创作',
-  home: '首页',
-  start: '快速开始',
-  templates: '模板中心',
-  history: '发布记录',
-  trash: '回收站',
-  pro: '版本与空间',
-};
+import { viewLabels, type WorkspaceView } from '../../routing/routes';
 interface Props {
   docs: AppDoc[];
   currentDocId: string;
   view: WorkspaceView;
   onNavigate: (view: WorkspaceView) => void;
-  onDocumentOpen: () => void;
+  onDocumentOpen: (id: string) => void;
   onOpenSettings: () => void;
   onOpenAssets: () => void;
   onSearchOpen: () => void;
@@ -56,9 +47,9 @@ export function DocumentSidebar({
   const [query, setQuery] = useState('');
   const tree = useMemo(() => buildPageTree(docs), [docs]);
   const create = (parentId?: string) => {
-    store.createDoc(parentId);
+    const id = store.createDoc(parentId);
     setQuery('');
-    onDocumentOpen();
+    onDocumentOpen(id);
   };
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -137,8 +128,7 @@ export function DocumentSidebar({
             selectedId={view === 'editor' ? currentDocId : ''}
             onAddChild={(node) => create(node.id)}
             onSelect={(node) => {
-              store.setCurrentDocId(node.id);
-              onDocumentOpen();
+              onDocumentOpen(node.id);
             }}
           />
         </div>

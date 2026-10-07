@@ -6,6 +6,10 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import helmet from 'helmet';
 
 import { loadConfig, type AppConfig } from './config.js';
+import type { ArticleRepository } from './repositories/article.repository.js';
+import { createMemoryArticleRepository } from './repositories/memory-article.repository.js';
+import { createArticleService } from './services/article.service.js';
+import { createArticleRouter } from './routes/articles.js';
 import { AppError, UpstreamServiceError, createErrorResponse } from './errors.js';
 import { createRequireAuth } from './middlewares/auth.middleware.js';
 import type { AuthRepository } from './repositories/auth.repository.js';
@@ -33,6 +37,7 @@ import { createCollaborationService } from './services/collaboration.service.js'
 import { createCollaborationRouter } from './routes/collaboration.js';
 
 export interface BuildAppOptions {
+  articleRepository?: ArticleRepository;
   config?: AppConfig;
   logger?: Pick<Console, 'error'> | false;
   authRepository?: AuthRepository;
@@ -169,6 +174,14 @@ export function buildApp(options: BuildAppOptions = {}): Express {
   app.use(express.urlencoded({ extended: true, limit: '16mb' }));
   app.use('/api', healthRouter);
   app.use('/api/auth', createAuthRouter({ config, authService, requireAuth }));
+  app.use(
+    '/api/articles',
+    createArticleRouter({
+      config,
+      requireAuth,
+      service: createArticleService(options.articleRepository ?? createMemoryArticleRepository()),
+    }),
+  );
   app.use(
     '/api/brand-assets',
     createBrandAssetRouter({ config, requireAuth, service: brandAssetService }),

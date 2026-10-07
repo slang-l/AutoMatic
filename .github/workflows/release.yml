@@ -1,0 +1,77 @@
+name: Publish release
+run-name: Release ${{ inputs.version }} ${{ inputs.note }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本号，例如 1.2.3 或 1.2.3-rc.1
+        required: true
+        type: string
+      deploy:
+        description: 发布完成后部署到 production
+        type: boolean
+        default: true
+      note:
+        description: 操作备注（可选）
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: automatic-release-${{ inputs.version }}
+      cancel-in-progress: false
+    outputs:
+      tag: ${{ steps.publish.outputs.tag }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: master
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+      - name: Validate version before downloading
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { releaseTag } from './scripts/lib/github.mjs';
+          console.log(releaseTag(process.env.RELEASE_VERSION));
+          NODE
+      - name: Resolve verified current master build
+        id: bundle
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/resolve-release.mjs
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ steps.bundle.outputs.artifact }}
+          run-id: ${{ steps.bundle.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: artifact
+      - name: Create version tag and publish verified assets
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_ID: ${{ steps.bundle.outputs.release }}
+          RELEASE_COMMIT: ${{ steps.bundle.outputs.commit }}
+        run: node scripts/publish-release.mjs
+  deploy:
+    needs: publish
+    if: inputs.deploy
+    uses: ./.github/workflows/deploy.yml
+    with:
+      source: tag
+      reference: ${{ needs.publish.outputs.tag }}
+      note: ${{ inputs.note }}
+    secrets: inherit

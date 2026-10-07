@@ -23,9 +23,13 @@ import {
   type AuthUser,
 } from '../../services/auth-api';
 
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { paths } from '../../routing/routes';
+
 type AuthMode = 'login' | 'register';
 
 interface AuthPageProps {
+  mode: AuthMode;
   onAuthenticated: (user: AuthUser) => void | Promise<void>;
 }
 
@@ -46,12 +50,13 @@ const EMPTY_FORM: AuthFormState = {
 const MAX_EMAIL_LENGTH = 254;
 const MAX_PASSWORD_BYTES = 72;
 
-export function AuthPage({ onAuthenticated }: AuthPageProps) {
+export function AuthPage({ mode, onAuthenticated }: AuthPageProps) {
   const emailId = useId();
   const passwordId = useId();
   const confirmPasswordId = useId();
   const verificationCodeId = useId();
-  const [mode, setMode] = useState<AuthMode>('login');
+  const navigate = useNavigate();
+  const [search] = useSearchParams();
   const [form, setForm] = useState<AuthFormState>(EMPTY_FORM);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -74,7 +79,10 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
 
   const switchMode = (nextMode: AuthMode) => {
     if (isSubmitting || isRequestingCode) return;
-    setMode(nextMode);
+    navigate({
+      pathname: paths[nextMode],
+      search: search.toString() ? '?' + search.toString() : '',
+    });
     setForm(EMPTY_FORM);
     setShowPassword(false);
     setResendSeconds(0);
@@ -184,16 +192,16 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
 
       <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[1220px] flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
         <header className="flex items-center justify-between">
-          <a
+          <Link
             className="flex items-center gap-2.5 text-[var(--ui-text)] no-underline"
-            href="/"
+            to={paths.home}
             aria-label="Block Notes 首页"
           >
             <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-[#292722] text-[#fffefa] shadow-[0_8px_18px_rgba(35,33,28,0.16)]">
               <PenLine size={18} strokeWidth={1.9} />
             </span>
             <span className="text-[15px] font-semibold tracking-[-0.02em]">Block Notes</span>
-          </a>
+          </Link>
           <span className="hidden items-center gap-2 text-xs font-medium text-[var(--ui-text-muted)] sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--ui-status-success)]" />
             专注公众号创作

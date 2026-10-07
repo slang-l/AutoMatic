@@ -1,0 +1,46 @@
+name: Production status
+run-name: Production status ${{ inputs.note }}
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 操作备注（可选）
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  status:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-ssh
+        with:
+          private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          host: ${{ vars.DEPLOY_HOST }}
+          port: ${{ vars.DEPLOY_PORT || '22' }}
+      - name: List active, previous and retained releases
+        run: |
+          ssh automatic-production 'sudo -n /usr/local/sbin/automatic-release status' > server-status.json
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open('server-status.json'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('当前版本：`' + (data['release'] or '未部署') + '`\n\n')
+              out.write('提交：`' + (data['commit'] or '未记录') + '`\n\n')
+              out.write('上一版：`' + (data['previous'] or '无') + '`\n\n')
+              out.write('| 保留版本 | 提交 |\n| --- | --- |\n')
+              for item in data['releases']:
+                  out.write('| `' + item['release'] + '` | `' + (item['commit'] or '未记录') + '` |\n')
+          print(json.dumps(data, ensure_ascii=False, indent=2))
+          PY
+      - name: Remove private key
+        if: always()
+        run: rm -f ~/.ssh/automatic_deploy
